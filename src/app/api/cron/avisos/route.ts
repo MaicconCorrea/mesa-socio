@@ -45,5 +45,6 @@ export async function GET(req: NextRequest) {
   }
   // limpeza dos avisos antigos
   await db().from("avisos_enviados").delete().lt("em", new Date(agora - 7 * 86400000).toISOString());
+  await db().from("webhook_log").delete().lt("em", new Date(agora - 2 * 86400000).toISOString());
   return NextResponse.json({ ok: true, avisos });
 }

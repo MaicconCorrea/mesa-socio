@@ -6,9 +6,9 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   if (!(await logado())) return naoAutorizado();
-  const { id, historico, pergunta } = await req.json().catch(() => ({}));
+  const { id, historico, pergunta, selecionadas } = await req.json().catch(() => ({}));
   try {
-    const resposta = await perguntarIA(id, Array.isArray(historico) ? historico : [], String(pergunta || ""));
+    const resposta = await perguntarIA(id, Array.isArray(historico) ? historico : [], String(pergunta || ""), Array.isArray(selecionadas) ? selecionadas : []);
     return NextResponse.json({ resposta });
   } catch (e) { return erro(e); }
 }

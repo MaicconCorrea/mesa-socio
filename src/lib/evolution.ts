@@ -43,7 +43,7 @@ export async function webhookAtual(inst: string) {
 }
 
 export async function ligarWebhook(inst: string, url: string) {
-  const events = ["MESSAGES_UPSERT"];
+  const events = ["MESSAGES_UPSERT", "SEND_MESSAGE"];
   // Formato da v2.1+ (objeto "webhook")
   let r = await evo(`/webhook/set/${encodeURIComponent(inst)}`, {
     method: "POST",

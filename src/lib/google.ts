@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 export const ESCOPOS = {
   gmail: "https://www.googleapis.com/auth/gmail.modify",
   agenda: "https://www.googleapis.com/auth/calendar",
+  drive: "https://www.googleapis.com/auth/drive.readonly",
 };
 
 export const minhaConta = () => (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();
@@ -35,11 +36,29 @@ export async function tokenGoogle(escopo: string, conta = minhaConta()): Promise
   const j = await r.json();
   if (!r.ok || !j.access_token) {
     const e = String(j.error_description ?? j.error ?? r.status);
-    const qual = escopo === ESCOPOS.agenda ? "a Agenda" : "o Gmail";
+    const qual = escopo === ESCOPOS.agenda ? "a Agenda" : escopo === ESCOPOS.drive ? "o Drive (reuniões)" : "o Gmail";
     throw new Error(/unauthorized_client|not authorized/i.test(e)
       ? `O Google ainda não autorizou o painel a acessar ${qual} (falta o escopo na delegação em todo o domínio no admin.google.com).`
       : `Google: ${e}`);
   }
   cache.set(chave, { token: j.access_token, expira: agora + Number(j.expires_in ?? 3600) });
+  return j.access_token;
+}
+
+// Token da própria conta de serviço (sem agir em nome de ninguém) — usado no Speech-to-Text
+const cacheSvc = new Map<string, { token: string; expira: number }>();
+export async function tokenServico(escopo = "https://www.googleapis.com/auth/cloud-platform"): Promise<string> {
+  const agora = Math.floor(Date.now() / 1000);
+  const c0 = cacheSvc.get(escopo); if (c0 && c0.expira > agora + 60) return c0.token;
+  const c = credenciais();
+  const b64u = (s: string | Buffer) => Buffer.from(s).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const cab = b64u(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const corpo = b64u(JSON.stringify({ iss: c.client_email, scope: escopo, aud: "https://oauth2.googleapis.com/token", iat: agora, exp: agora + 3600 }));
+  const jwt = `${cab}.${corpo}.${b64u(crypto.sign("RSA-SHA256", Buffer.from(`${cab}.${corpo}`), c.private_key))}`;
+  const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }) });
+  const j = await r.json();
+  if (!r.ok || !j.access_token) throw new Error(`Google: ${j.error_description ?? j.error ?? r.status}`);
+  cacheSvc.set(escopo, { token: j.access_token, expira: agora + Number(j.expires_in ?? 3600) });
   return j.access_token;
 }

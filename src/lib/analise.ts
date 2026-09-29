@@ -5,8 +5,9 @@ import { conflitos } from "./agenda";
 import { googleConfigurado } from "./google";
 import { lerConfig } from "./config";
 import { notificar } from "./push";
+import { estiloDoMaiccon } from "./estilo";
 
-const MODELO = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+export const MODELO = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MODELO_LEVE = () => process.env.ANTHROPIC_MODEL_LEVE || "claude-haiku-4-5-20251001";
 const HORAS_PARADO = () => Number(process.env.HORAS_GRUPO_PARADO || 4);
 
@@ -41,15 +42,17 @@ const MODO: Record<string, string> = {
 "precisa_resposta": true só se uma mensagem que cita o Maiccon ainda espera resposta DELE. Caso contrário false.`,
 };
 
-const SAIDA = `Responda SOMENTE com JSON, sem crases e sem texto fora dele:
-{"tarefas":[{"tipo":"pedido","categoria":"trabalho","titulo":"","detalhe":"","quem":"","prazo":null,"trecho":""}],"precisa_resposta":false,"resumo":"uma frase sobre a conversa"}`;
+const SAIDA = `"sugestao_resposta": se a ÚLTIMA mensagem é de outra pessoa (em grupo: só se falou com o Maiccon), escreva a mensagem que o Maiccon mandaria agora, no jeito dele de escrever (veja os exemplos), pronta pra enviar; em assunto técnico (imposto, valores, prazos legais) não invente: diga que vai verificar/confirmar. Se não couber resposta, null.
+"resumo": 1 a 2 frases dizendo o que está acontecendo e o que a pessoa quer.
+Responda SOMENTE com JSON, sem crases e sem texto fora dele:
+{"tarefas":[{"tipo":"pedido","categoria":"trabalho","titulo":"","detalhe":"","quem":"","prazo":null,"trecho":""}],"precisa_resposta":false,"resumo":"","sugestao_resposta":null}`;
 
-function normalizar(s: string) {
+export function normalizar(s: string) {
   return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
-async function chamarClaude(sistema: string, conteudo: string, modelo: string, maxTokens = 1500) {
+export async function chamarClaude(sistema: string, conteudo: string, modelo: string, maxTokens = 1500) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY não configurada na Vercel");
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -105,7 +108,8 @@ export async function analisarConversa(conversaId: string) {
     ...linhasMensagens(msgs, corte),
   ].join("\n");
 
-  const { obj, uso } = await chamarClaude(`${BASE}\n\n${MODO[modo]}\n\n${SAIDA}`, conteudo, MODELO());
+  const estilo = await estiloDoMaiccon();
+  const { obj, uso } = await chamarClaude(`${BASE}\n\n${MODO[modo]}\n\n${estilo}\n\n${SAIDA}`, conteudo, MODELO(), 2000);
   await registrarUso(conversaId, uso);
 
   let criadas = 0;
@@ -134,11 +138,14 @@ export async function analisarConversa(conversaId: string) {
   }
 
   const ultimaDeMim = msgs[msgs.length - 1]?.de_mim;
+  const cfg = await lerConfig();
+  const sug = cfg.sugestao_auto && !ultimaDeMim && obj.sugestao_resposta ? String(obj.sugestao_resposta).trim().slice(0, 2000) : null;
   await sb.from("conversas").update({
     pendente_ia: false,
     analisada_em: new Date().toISOString(),
     precisa_resposta: modo !== "pessoal" && !ultimaDeMim && !!obj.precisa_resposta,
     resumo: obj.resumo ? String(obj.resumo).slice(0, 300) : conv.resumo,
+    sugestao: sug, sugestao_em: sug ? new Date().toISOString() : null,
     ia_erro: null,
   }).eq("id", conversaId);
 
@@ -215,7 +222,7 @@ export async function analisarPendentes(limite = 8) {
 }
 
 // Chat com a IA sobre uma conversa ("o que ela quer?", "rascunha a resposta")
-export async function perguntarIA(conversaId: string, historico: { role: "user" | "assistant"; content: string }[], pergunta: string) {
+export async function perguntarIA(conversaId: string, historico: { role: "user" | "assistant"; content: string }[], pergunta: string, selecionadas: string[] = []) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY não configurada na Vercel");
   const sb = db();
@@ -223,11 +230,24 @@ export async function perguntarIA(conversaId: string, historico: { role: "user" 
   const { data: msgsDesc } = await sb.from("mensagens").select("*").eq("conversa_id", conversaId)
     .order("enviada_em", { ascending: false }).limit(60);
   const msgs = (msgsDesc || []).reverse();
+  let foco = "";
+  if (selecionadas.length) {
+    const { data: sel } = await sb.from("mensagens").select("*").in("id", selecionadas).order("enviada_em");
+    foco = `\n\nO MAICCON SELECIONOU ESTAS MENSAGENS — responda com foco nelas:\n${linhasMensagens(sel || [], Infinity).join("\n")}`;
+  }
+  const estilo = await estiloDoMaiccon();
   const sistema = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ).
-Responda em português, direto e curto. Quando pedirem uma resposta para o contato, escreva só o texto da mensagem, no tom do Maiccon (educado, próximo, objetivo), pronto para colar no WhatsApp.
+Responda em português, direto e curto. Tom do Maiccon: educado, próximo, objetivo.
+Formato da sua resposta:
+- Primeiro, se ajudar, uma explicação curta PARA O MAICCON (máx. 3 frases).
+- Quando fizer sentido sugerir uma mensagem para ele mandar, coloque SÓ o texto da mensagem entre [MENSAGEM] e [/MENSAGEM].
+- A mensagem é escrita em primeira pessoa, como se fosse o Maiccon digitando: natural, curta, sem asteriscos, sem aspas, sem itálico, sem "Olá, sou…". Nada de explicação dentro da mensagem.
+- Em assunto técnico (imposto, prazo, valor), não afirme números ou limites que você não tem certeza; prefira "vou confirmar e te retorno".
 Agora: ${agoraTexto()}.
 Conversa de WhatsApp com ${conv?.nome || "contato"} (${conv?.is_grupo ? "grupo" : "individual"}, número ${conv?.instancia}):
-${linhasMensagens(msgs, Infinity).join("\n")}`;
+${linhasMensagens(msgs, Infinity).join("\n")}${foco}
+
+${estilo}`;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -304,4 +324,55 @@ async function avisarTarefa(titulo: string, tipo: string, prazo: string | null, 
     const rot = tipo === "promessa" ? "Você prometeu" : tipo === "reuniao" ? "Reunião combinada" : "Pedido pra você";
     await notificar(`🤖 ${rot}`, `${titulo}${prazo ? " · " + dataHora(prazo) : ""}`, url);
   } catch { /* segue */ }
+}
+
+// Gera (de novo) a sugestão de resposta da conversa, no jeito do Maiccon
+export async function sugerirResposta(conversaId: string, instrucao = "") {
+  const sb = db();
+  const { data: conv } = await sb.from("conversas").select("*").eq("id", conversaId).single();
+  const { data: msgsDesc } = await sb.from("mensagens").select("*").eq("conversa_id", conversaId).order("enviada_em", { ascending: false }).limit(40);
+  const msgs = (msgsDesc || []).reverse();
+  const estilo = await estiloDoMaiccon();
+  const sis = `Você escreve a próxima mensagem de WhatsApp do Maiccon (sócio da Outtax, escritório de contabilidade), como se fosse ele digitando.
+${estilo}
+Em assunto técnico (imposto, valores, prazos legais) não invente: diga que vai verificar e retornar.
+Responda SOMENTE o texto da mensagem, sem aspas e sem explicação.`;
+  const conteudo = `Agora: ${agoraTexto()}\nConversa com ${conv?.nome} (${conv?.is_grupo ? "grupo" : "individual"}):\n${linhasMensagens(msgs, Infinity).join("\n")}${instrucao ? `\n\nO Maiccon quer responder assim: ${instrucao}` : ""}`;
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("ANTHROPIC_API_KEY não configurada na Vercel");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODELO(), max_tokens: 800, system: sis, messages: [{ role: "user", content: conteudo }] }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`Anthropic ${r.status}: ${JSON.stringify(j).slice(0, 200)}`);
+  await registrarUso(conversaId, j.usage || {});
+  const texto = (j.content || []).map((c: any) => c.text || "").join("").trim().replace(/^["“]|["”]$/g, "");
+  await sb.from("conversas").update({ sugestao: texto, sugestao_em: new Date().toISOString() }).eq("id", conversaId);
+  return texto;
+}
+
+// Cria tarefas só a partir das mensagens que o Maiccon selecionou (vale até em grupo)
+export async function tarefasDaSelecao(conversaId: string, ids: string[]) {
+  const sb = db();
+  const { data: conv } = await sb.from("conversas").select("*").eq("id", conversaId).single();
+  const { data: sel } = await sb.from("mensagens").select("*").in("id", ids).order("enviada_em");
+  if (!sel?.length) return { criadas: 0 };
+  const conteudo = `Agora: ${agoraTexto()}\nConversa: ${conv?.nome}\nO Maiccon selecionou estas mensagens e quer que virem tarefa(s) dele. Crie pelo menos uma.\n\nMensagens:\n${linhasMensagens(sel, 0).join("\n")}`;
+  const { obj, uso } = await chamarClaude(`${BASE}\n\n${MODO.auto}\n\n${SAIDA}`, conteudo, MODELO());
+  await registrarUso(conversaId, uso);
+  let criadas = 0;
+  for (const t of obj.tarefas || []) {
+    if (!t?.titulo) continue;
+    const tipo = ["pedido", "promessa", "reuniao"].includes(t.tipo) ? t.tipo : "outro";
+    let prazo: string | null = null;
+    if (t.prazo) { const d = new Date(t.prazo); if (!isNaN(d.getTime())) prazo = d.toISOString(); }
+    const { data } = await sb.from("tarefas").upsert({
+      conversa_id: conversaId, tipo, categoria: t.categoria === "pessoal" ? "pessoal" : "trabalho",
+      titulo: String(t.titulo).slice(0, 200), detalhe: t.detalhe || null, quem: t.quem || conv?.nome || null, prazo,
+      trecho: t.trecho ? String(t.trecho).slice(0, 500) : null, origem: "whatsapp", hash: `${conversaId}|${tipo}|${normalizar(t.titulo)}`,
+    }, { onConflict: "hash", ignoreDuplicates: true }).select("id");
+    if (data?.length) { criadas++; if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo); }
+  }
+  return { criadas };
 }

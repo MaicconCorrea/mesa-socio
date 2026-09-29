@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import MandarSetor from "@/components/MandarSetor";
+import BolhaIA from "@/components/BolhaIA";
 
 type Th = { id: string; assunto: string; de: string; deEmail: string; quando: string; snippet: string; naoLido: boolean; temAnexo: boolean; mensagens: number; ultimaMinha: boolean; automatico: boolean;
   controle: { status: string; resumo: string | null; esperando: boolean } | null };
@@ -47,6 +49,7 @@ export default function EmailApp() {
   const [analisando, setAnalisando] = useState(false);
   const [visor, setVisor] = useState<Anexo | null>(null);
   const [mostrarIA, setMostrarIA] = useState(false);
+  const [setor, setSetor] = useState(false);
   const [viewMobile, setViewMobile] = useState<"atendentes" | "lista" | "conversa">("lista");
   const inputArq = useRef<HTMLInputElement | null>(null);
 
@@ -207,6 +210,7 @@ export default function EmailApp() {
                   <button className="mini sec" onClick={() => acao("arquivar")}>Arquivar</button>
                   <button className="mini sec" onClick={() => acao("nao_lido")}>Não lido</button>
                   <button className="mini sec" onClick={() => acao("ignorar")} title="Não é pra mim / não precisa resposta">Ignorar</button>
+                  <button className="mini" onClick={() => setSetor(true)} title="Abre chamado no Acessórias">➡️ Setor</button>
                   <button className="mini sec" onClick={() => setMostrarIA(v => !v)}>🤖 IA</button>
                 </div>
               </div>
@@ -252,8 +256,9 @@ export default function EmailApp() {
             <div style={{ borderTop: "1px solid var(--line)", marginTop: 14, paddingTop: 10 }}>
               <b className="small">Conversar com a IA</b>
               <div className="ia-chat" style={{ marginTop: 6 }}>
-                {chat.map((c, i) => <div key={i} className={"ia-bolha " + c.role}><div style={{ whiteSpace: "pre-wrap" }}>{c.content}</div>
-                  {c.role === "assistant" && !c.content.startsWith("⚠️") && <button className="linkbtn" onClick={() => { if (!resp) responder(false); setResp(r => ({ ...(r || { para: ultimaDeFora?.deEmail || "", cc: "" }), corpo: c.content } as any)); }}>usar como resposta</button>}</div>)}
+                {chat.map((c, i) => c.role === "assistant" && !c.content.startsWith("⚠️")
+                  ? <BolhaIA key={i} texto={c.content} aoUsar={(m) => setResp(r => ({ ...(r || { para: ultimaDeFora?.deEmail || "", cc: "" }), corpo: m } as any))} />
+                  : <div key={i} className={"ia-bolha " + c.role}><div style={{ whiteSpace: "pre-wrap" }}>{c.content}</div></div>)}
                 {pensando && <div className="ia-bolha assistant muted">pensando…</div>}
               </div>
               <div className="acoes" style={{ marginTop: 6, flexWrap: "nowrap" }}>
@@ -265,6 +270,10 @@ export default function EmailApp() {
           </div>
         )}
       </div>
+
+      {setor && aberta && <MandarSetor threadId={aberta.id}
+        anexosEmail={aberta.mensagens.flatMap(m => m.anexos).map(a => ({ chave: `${a.msgId}|${a.attId}|${a.nome}|${a.mime}`, nome: a.nome }))}
+        onFechar={(msg) => { setSetor(false); if (msg) setAviso(msg); }} />}
 
       {visor && <div className="visor-fundo" onClick={e => { if (e.target === e.currentTarget) setVisor(null); }}>
         <div className="visor-topo"><span>{visor.nome}</span><div style={{ flex: 1 }} />

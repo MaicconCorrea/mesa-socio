@@ -10,7 +10,7 @@ export async function registrarEnvio(sb: any, c: any, m: { msg_id: string; texto
   }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true });
   await sb.from("conversas").update({
     ultima_msg_em: agora, ultima_msg_de_mim: true, ultima_msg_texto: "Você: " + m.texto.slice(0, 200),
-    precisa_resposta: false, nao_lidas: 0, pendente_ia: true,
+    precisa_resposta: false, nao_lidas: 0, pendente_ia: true, sugestao: null,
     ...(c.modo === "grupo" ? { sem_retorno: false, checar_parado: false } : {}),
   }).eq("id", c.id);
 }

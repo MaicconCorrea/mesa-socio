@@ -13,6 +13,8 @@ export const PADRAO = {
   resumo_email: true,
   resumo_whats_para: "",     // número que recebe o resumo no WhatsApp (vazio = não manda)
   resumo_whats_de: "",       // instância que envia (vazio = a primeira)
+  estilo_escrita: "",        // "meu jeito de escrever" (a IA imita nas sugestões)
+  sugestao_auto: true,       // IA deixa uma resposta sugerida pronta em cada conversa
 };
 export type Config = typeof PADRAO;
 

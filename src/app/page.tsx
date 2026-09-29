@@ -27,6 +27,9 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
   const { data: emails } = ver === "pessoal" ? { data: [] as any[] } : await sb.from("email_threads").select("*")
     .eq("esperando", true).eq("status", "nova").order("recebido_em", { ascending: true }).limit(10);
 
+  const { data: delegados } = ver === "pessoal" ? { data: [] as any[] } : await sb.from("chamados").select("*")
+    .or(`status.neq.F,finalizado_em.gte.${new Date(Date.now() - 86400000).toISOString()}`).order("criado_em", { ascending: false }).limit(12);
+
   const { count: naFila } = await sb.from("conversas").select("id", { count: "exact", head: true })
     .eq("pendente_ia", true).neq("modo", "ignorada");
 
@@ -125,6 +128,14 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
                     </div>
                   </div>
                 )) : <div className="vazio">Ninguém esperando. 🎉</div>}
+
+                <h2>➡️ Delegados ao time {delegados?.filter(d => d.status !== "F").length ? <span className="contador">{delegados.filter(d => d.status !== "F").length}</span> : null}</h2>
+                {delegados?.length ? delegados.map((d) => (
+                  <div className="card" key={d.id} style={{ opacity: d.status === "F" ? .6 : 1 }}>
+                    <div className="linha"><span className="selo outro">{d.departamento_nome}</span><span className="titulo">{d.assunto}</span></div>
+                    <div className="meta">#{d.sol_id} · {d.empresa_nome} · {d.status === "F" ? "✅ finalizado" : d.status === "C" ? "⏳ aguardando cliente" : d.status === "P" ? "🔧 setor resolvendo" : "🆕 novo"} · {haQuanto(d.criado_em)}</div>
+                  </div>
+                )) : <div className="vazio">Nada delegado em aberto.</div>}
 
                 <h2>👥 Grupos sem retorno do time {parados?.length ? <span className="contador">{parados.length}</span> : null}</h2>
                 <div className="meta" style={{ marginTop: -6, marginBottom: 8 }}>Cliente pediu algo e ninguém respondeu há mais de 4h.</div>

@@ -25,18 +25,56 @@ function textoCitado(m: any): string | null {
   return q ? (extrairTexto(q) || "[mídia]") : null;
 }
 
+const ignorar = (j: string) => j === "status@broadcast" || j.endsWith("@broadcast") || j.endsWith("@newsletter");
+const ehLid = (j?: string | null) => !!j && j.endsWith("@lid");
+const ehTelefone = (j?: string | null) => !!j && (j.endsWith("@s.whatsapp.net") || j.endsWith("@g.us"));
+
+// WhatsApp novo usa "LID" (um id interno) em vez do número em algumas mensagens — principalmente as que
+// você manda pelo celular. Aqui a gente descobre o número verdadeiro pra cair na conversa certa.
 export function jidDaMensagem(key: any): string | null {
   if (!key?.remoteJid) return null;
   let jid: string = key.remoteJid;
-  if (jid.endsWith("@lid") && key.remoteJidAlt) jid = key.remoteJidAlt;
-  if (jid === "status@broadcast" || jid.endsWith("@broadcast") || jid.endsWith("@newsletter")) return null;
-  return jid;
+  if (ehLid(jid)) {
+    const alt = [key.remoteJidAlt, key.senderPn, key.remoteJidPn].find(ehTelefone);
+    if (alt) jid = alt;
+  }
+  return ignorar(jid) ? null : jid;
+}
+export function lidDaMensagem(key: any): string | null {
+  return [key?.remoteJid, key?.remoteJidAlt, key?.senderLid].find(ehLid) || null;
 }
 
-export async function gravarMensagem(sb: any, instancia: string, meuNumero: string, m: any, opcoes: { historico?: boolean } = {}) {
+// LID sem número: procura a conversa que já tem esse LID gravado
+async function resolverLid(sb: any, instancia: string, jid: string): Promise<string> {
+  if (!ehLid(jid)) return jid;
+  const { data } = await sb.from("conversas").select("jid").eq("instancia", instancia).eq("lid", jid).limit(1);
+  return data?.[0]?.jid || jid;
+}
+
+// Achou o número de um LID: grava e junta a conversa "fantasma" (@lid) na conversa certa
+async function registrarLid(sb: any, instancia: string, jidTelefone: string, lid: string) {
+  const { data: conv } = await sb.from("conversas").select("id,lid").eq("instancia", instancia).eq("jid", jidTelefone).maybeSingle();
+  if (!conv || conv.lid === lid) return;
+  await sb.from("conversas").update({ lid }).eq("id", conv.id);
+  const { data: fantasma } = await sb.from("conversas").select("id").eq("instancia", instancia).eq("jid", lid).maybeSingle();
+  if (fantasma) {
+    const { data: ms } = await sb.from("mensagens").select("*").eq("conversa_id", fantasma.id);
+    for (const m of ms || []) {
+      const { id: _id, ...resto } = m;
+      await sb.from("mensagens").upsert({ ...resto, conversa_id: conv.id }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true });
+    }
+    await sb.from("tarefas").update({ conversa_id: conv.id }).eq("conversa_id", fantasma.id);
+    await sb.from("conversas").delete().eq("id", fantasma.id);
+  }
+}
+
+export async function gravarMensagem(sb: any, instancia: string, meuNumero: string, m: any, opcoes: { historico?: boolean; jid?: string } = {}) {
   const key = m?.key;
-  const jid = jidDaMensagem(key);
+  let jid = opcoes.jid || jidDaMensagem(key);
   if (!jid || !key?.id) return false;
+  const lid = lidDaMensagem(key);
+  if (lid && ehTelefone(jid) && !jid.endsWith("@g.us")) await registrarLid(sb, instancia, jid, lid);
+  jid = await resolverLid(sb, instancia, jid);
 
   const texto = extrairTexto(m.message);
   if (!texto) return false;
@@ -93,7 +131,7 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
     upd.ultima_msg_em = quando.toISOString();
     upd.ultima_msg_de_mim = deMim;
     upd.ultima_msg_texto = (deMim ? "Você: " : (isGrupo ? autor + ": " : "")) + texto.slice(0, 200);
-    if (deMim) upd.precisa_resposta = false;
+    if (deMim) { upd.precisa_resposta = false; upd.sugestao = null; }
   }
   if (Object.keys(upd).length) await sb.from("conversas").update(upd).eq("id", conv.id);
 

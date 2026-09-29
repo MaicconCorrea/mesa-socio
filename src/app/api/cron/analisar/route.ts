@@ -1,6 +1,7 @@
 // Cron (a cada 2 min): IA lê as conversas novas e cria tarefas
 import { NextRequest, NextResponse } from "next/server";
 import { analisarPendentes } from "@/lib/analise";
+import { transcreverPendentes } from "@/lib/transcrever";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -12,6 +13,8 @@ export async function GET(req: NextRequest) {
   const okManual = process.env.WEBHOOK_SECRET && secret === process.env.WEBHOOK_SECRET;
   if (!okCron && !okManual) return NextResponse.json({ ok: false }, { status: 401 });
 
+  let audios: any = {};
+  try { audios = await transcreverPendentes(8); } catch (e: any) { audios = { erro: e?.message }; }
   const r = await analisarPendentes(8);
-  return NextResponse.json({ ok: true, ...r });
+  return NextResponse.json({ ok: true, audios, ...r });
 }

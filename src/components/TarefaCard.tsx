@@ -1,6 +1,7 @@
 import { concluirTarefa, descartarTarefa } from "@/app/actions";
 import { dataHora, ROTULO_TIPO } from "@/lib/fmt";
 import AgendarBotao from "./AgendarBotao";
+import SetorBotao from "./SetorBotao";
 
 export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string }) {
   return (
@@ -16,6 +17,7 @@ export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string
         {t.conversas ? (
           <a href={`/whatsapp?c=${t.conversa_id}`}>💬 {t.conversas.nome} ({t.conversas.instancia})</a>
         ) : t.origem === "email" && t.email_thread_id ? <a href={`/email?thread=${t.email_thread_id}`}>✉️ e-mail</a>
+          : t.origem === "reuniao" && t.reuniao_id ? <a href={`/reunioes?r=${t.reuniao_id}`}>🎙️ reunião</a>
           : t.origem === "manual" ? "✍️ anotação manual" : null}
       </div>
       {t.detalhe ? <div className="meta">{t.detalhe}</div> : null}
@@ -24,6 +26,7 @@ export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string
       <div className="acoes">
         <form action={concluirTarefa}><input type="hidden" name="id" value={t.id} /><button className="ok">✓ Feito</button></form>
         <form action={descartarTarefa}><input type="hidden" name="id" value={t.id} /><button className="perigo">Descartar</button></form>
+        {t.categoria !== "pessoal" ? <SetorBotao tarefaId={t.id} /> : null}
         {t.prazo && !t.evento_id ? <AgendarBotao id={t.id} /> : t.evento_id ? <span className="small muted">📅 na agenda</span> : null}
       </div>
     </div>

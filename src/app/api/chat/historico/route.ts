@@ -9,17 +9,19 @@ export const maxDuration = 60;
 // Puxa o histórico da conversa guardado na Evolution (uma vez por conversa; "forcar" repete)
 export async function POST(req: NextRequest) {
   if (!(await logado())) return naoAutorizado();
-  const { id, forcar, qtd } = await req.json().catch(() => ({}));
+  const { id, forcar, qtd, conferir } = await req.json().catch(() => ({}));
   const sb = db();
   const { data: c } = await sb.from("conversas").select("*").eq("id", id).single();
   if (!c) return NextResponse.json({ erro: "conversa não encontrada" }, { status: 404 });
   if (c.modo === "ignorada") return NextResponse.json({ ok: true, importadas: 0 });
-  if (c.historico_em && !forcar) return NextResponse.json({ ok: true, importadas: 0, ja: true });
+  if (c.historico_em && !forcar && !conferir) return NextResponse.json({ ok: true, importadas: 0, ja: true });
   try {
     const dono = await donoDaInstancia(c.instancia);
-    const lista = await historico(c.instancia, c.jid, Math.min(Number(qtd) || 60, 200));
+    const n = Math.min(Number(qtd) || 60, 200);
+    const lista = [...await historico(c.instancia, c.jid, n), ...(c.lid ? await historico(c.instancia, c.lid, n) : [])];
     let importadas = 0;
-    for (const m of lista) { if (await gravarMensagem(sb, c.instancia, dono, m, { historico: true })) importadas++; }
+    for (const m of lista) { if (await gravarMensagem(sb, c.instancia, dono, m, { historico: true, jid: c.jid })) importadas++; }
+    if (conferir) return NextResponse.json({ ok: true, importadas });
     const upd: any = { historico_em: new Date().toISOString() };
     if (!c.foto_url && !c.is_grupo) upd.foto_url = await fotoPerfil(c.instancia, c.jid);
     await sb.from("conversas").update(upd).eq("id", c.id);

@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ligarPush, statusPush } from "@/lib/push-cliente";
+import MandarSetor from "@/components/MandarSetor";
+import BolhaIA from "@/components/BolhaIA";
 
 type Conversa = {
   id: string; instancia: string; jid: string; nome: string; is_grupo: boolean; modo: string;
@@ -9,7 +11,7 @@ type Conversa = {
 };
 type Msg = {
   id: string; msg_id: string; de_mim: boolean; autor: string | null; texto: string | null; enviada_em: string;
-  me_citou: boolean; tipo: string | null; midia_mime: string | null; midia_nome: string | null; tem_midia: boolean; citada_texto?: string | null;
+  me_citou: boolean; tipo: string | null; midia_mime: string | null; midia_nome: string | null; tem_midia: boolean; citada_texto?: string | null; transcricao?: string | null; transcricao_erro?: string | null;
 };
 const MAX_ARQ = 3 * 1024 * 1024; // limite da Vercel pro envio (~3 MB)
 
@@ -81,6 +83,13 @@ export default function ChatApp() {
   const historicoPedido = useRef<Set<string>>(new Set());
   const [carregandoAntigas, setCarregandoAntigas] = useState(false);
   const [visor, setVisor] = useState<Msg | null>(null); // foto/PDF aberto por cima
+  const [setor, setSetor] = useState(false);
+  const [selecionando, setSelecionando] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [transcrevendo, setTranscrevendo] = useState<Set<string>>(new Set());
+  const [sugerindo, setSugerindo] = useState(false);
+  const [dispensada, setDispensada] = useState<string | null>(null);
+  const [instrucao, setInstrucao] = useState<string | null>(null);
 
   const midiasVisor = useMemo(() => (msgs || []).filter(m => m.tem_midia && (m.tipo === "imagem" || (m.midia_mime || "").includes("pdf"))), [msgs]);
   const moverVisor = useCallback((d: number) => {
@@ -179,6 +188,7 @@ export default function ChatApp() {
   useEffect(() => {
     if (!ativoId) return;
     setMsgs(null); setChat([]); setAviso(""); setNovasAbaixo(0); setCitada(null); setArquivos([]);
+    setSelecionando(false); setSel(new Set()); setInstrucao(null);
     carregarConversa(ativoId, true);
     if (!historicoPedido.current.has(ativoId)) {
       historicoPedido.current.add(ativoId);
@@ -187,7 +197,14 @@ export default function ChatApp() {
         .then(j => { if (j.importadas) carregarConversa(id, true); }).catch(() => {});
     }
     const t = setInterval(() => { if (document.visibilityState === "visible") carregarConversa(ativoId); }, 3000);
-    return () => clearInterval(t);
+    // rede de segurança: a cada 20s confere na Evolution se tem mensagem que não chegou pelo webhook (ex.: enviada pelo celular)
+    const id = ativoId;
+    const conf = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/chat/historico", { method: "POST", body: JSON.stringify({ id, conferir: true, qtd: 20 }) }).then(r => r.json())
+        .then(j => { if (j.importadas) carregarConversa(id); }).catch(() => {});
+    }, 20000);
+    return () => { clearInterval(t); clearInterval(conf); };
   }, [ativoId, carregarConversa]);
 
   const aoRolar = () => {
@@ -252,11 +269,33 @@ export default function ChatApp() {
     await fetch("/api/tarefas/acao", { method: "POST", body: JSON.stringify({ id, acao }) });
     setTarefas(t => t.filter(x => x.id !== id));
   }
-  async function perguntar() {
-    const p = pergunta.trim(); if (!p || !ativoId) return;
+  function perguntarRapido(p: string, ids?: string[]) { setPergunta(""); perguntar(p, ids); }
+  async function transcrever(id: string) {
+    setTranscrevendo(s0 => new Set(s0).add(id));
+    const j = await fetch("/api/chat/transcrever", { method: "POST", body: JSON.stringify({ id }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    setTranscrevendo(s0 => { const n = new Set(s0); n.delete(id); return n; });
+    if (j.erro) setAviso("Transcrição: " + j.erro);
+    if (ativoId) carregarConversa(ativoId);
+  }
+  async function sugerir(instr = "") {
+    if (!ativoId) return;
+    setSugerindo(true); setDispensada(null);
+    const j = await fetch("/api/chat/sugerir", { method: "POST", body: JSON.stringify({ id: ativoId, instrucao: instr }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    setSugerindo(false); setInstrucao(null);
+    if (j.erro) setAviso("IA: " + j.erro); else setConv((c: any) => ({ ...c, sugestao: j.texto, sugestao_em: new Date().toISOString() }));
+  }
+  function alternarSel(id: string) { setSel(s0 => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
+  async function tarefaDaSelecao() {
+    if (!ativoId || !sel.size) return;
+    setAviso("🤖 Criando tarefa das mensagens selecionadas…");
+    const j = await fetch("/api/chat/tarefas-selecao", { method: "POST", body: JSON.stringify({ id: ativoId, ids: Array.from(sel) }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    setAviso(j.erro ? "IA: " + j.erro : `${j.criadas} tarefa(s) criada(s).`); setSelecionando(false); setSel(new Set()); carregarConversa(ativoId);
+  }
+  async function perguntar(texto?: string, ids?: string[]) {
+    const p = (texto ?? pergunta).trim(); if (!p || !ativoId) return;
     const hist = chat; setChat([...hist, { role: "user", content: p }]); setPergunta(""); setPensando(true);
-    const j = await fetch("/api/chat/ia", { method: "POST", body: JSON.stringify({ id: ativoId, historico: hist, pergunta: p }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
-    setPensando(false);
+    const j = await fetch("/api/chat/ia", { method: "POST", body: JSON.stringify({ id: ativoId, historico: hist, pergunta: p, selecionadas: ids || [] }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    setPensando(false); setMostrarIA(true);
     setChat(c => [...c, { role: "assistant", content: j.erro ? "⚠️ " + j.erro : j.resposta }]);
   }
 
@@ -431,6 +470,7 @@ export default function ChatApp() {
                   <select value={ativo.modo} onChange={e => mudarModo(e.target.value)} style={{ width: "auto", fontSize: 12.5, padding: "5px 8px" }} title="Modo da conversa">
                     {Object.entries(MODOS).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
                   </select>
+                  <button className={selecionando ? "" : "sec"} onClick={() => { setSelecionando(v => !v); setSel(new Set()); }} title="Selecionar mensagens para a IA">☑️ {selecionando ? "Selecionando" : "Selecionar"}</button>
                   <button className="sec" onClick={() => setMostrarIA(v => !v)}>🤖 IA</button>
                 </div>
               </div>
@@ -441,15 +481,27 @@ export default function ChatApp() {
                 {msgs?.length === 0 && <p className="muted small">Sem mensagens guardadas ainda. As novas aparecem aqui na hora.</p>}
                 {msgs?.map(m => {
                   const link = `/api/chat/midia?id=${m.id}`;
-                  const txt = m.tem_midia ? semMarcador(m.texto) : m.texto;
+                  const txt = m.tipo === "audio" ? "" : m.tem_midia ? semMarcador(m.texto) : m.texto;
                   return (
-                    <div key={m.id} className={"dg-msg " + (m.de_mim ? "equipe" : "cliente")}>
+                    <div key={m.id} className={"dg-msg " + (m.de_mim ? "equipe" : "cliente")}
+                      onClick={selecionando ? () => alternarSel(m.id) : undefined}
+                      style={selecionando ? { cursor: "pointer", outline: sel.has(m.id) ? "3px solid var(--laranja)" : "1px dashed rgba(0,0,0,.15)", outlineOffset: 2 } : undefined}>
+                      {selecionando && <span style={{ float: "right", marginLeft: 6 }}>{sel.has(m.id) ? "☑️" : "⬜"}</span>}
                       {!m.de_mim && ativo.is_grupo && m.autor && <div className="dg-autor" style={{ fontSize: 11, fontWeight: 700, color: "var(--azul)" }}>{m.autor}</div>}
                       {m.me_citou && <span className="citou">📣 falou com você</span>}
                       {m.citada_texto && <div style={{ borderLeft: "3px solid var(--laranja)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--paper)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9 }}>{m.citada_texto.slice(0, 160)}</div>}
                       {m.tem_midia && (
                         m.tipo === "imagem" ? <img className="midia" src={link} alt="imagem" loading="lazy" onClick={() => setVisor(m)} onLoad={() => { if (grudado.current) irProFim(); }} />
-                        : m.tipo === "audio" ? <audio controls preload="none" src={link} />
+                        : m.tipo === "audio" ? <div>
+                            <audio controls preload="none" src={link} />
+                            {m.transcricao
+                              ? <div style={{ fontSize: 12.5, fontStyle: "italic", marginTop: 4, opacity: .95, whiteSpace: "pre-wrap" }}>📝 {m.transcricao}</div>
+                              : <div style={{ marginTop: 2 }}>
+                                  <button className="linkbtn" style={{ color: "inherit", fontSize: 11.5 }} disabled={transcrevendo.has(m.id)} onClick={e => { e.stopPropagation(); transcrever(m.id); }}>
+                                    {transcrevendo.has(m.id) ? "transcrevendo…" : "📝 transcrever áudio"}</button>
+                                  {m.transcricao_erro && <span style={{ fontSize: 11, opacity: .8 }}> · {m.transcricao_erro.slice(0, 80)}</span>}
+                                </div>}
+                          </div>
                         : m.tipo === "video" ? <video controls preload="none" src={link} style={{ maxWidth: 240 }} />
                         : (m.midia_mime || "").includes("pdf")
                           ? <a href={link} className="dg-doc" onClick={e => { e.preventDefault(); setVisor(m); }}>📄 {m.midia_nome || "documento"}</a>
@@ -468,6 +520,33 @@ export default function ChatApp() {
                 {ativo.modo === "ignorada"
                   ? <p className="muted small">Conversa ignorada: nada é guardado. Mude o modo acima pra voltar a acompanhar.</p>
                   : <>
+                    {selecionando && <div className="small" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", background: "var(--ambar-bg)", padding: "6px 8px", borderRadius: 8 }}>
+                      <b>{sel.size} selecionada(s)</b> <span className="muted">— toque nas mensagens</span>
+                      <div style={{ flex: 1 }} />
+                      <button className="mini" disabled={!sel.size || pensando} onClick={() => perguntarRapido("Resuma estas mensagens e diga o que precisa ser feito.", Array.from(sel))}>🤖 Resumir</button>
+                      <button className="mini" disabled={!sel.size || pensando} onClick={() => perguntarRapido("Sugira a minha resposta para estas mensagens.", Array.from(sel))}>✍️ Sugerir resposta</button>
+                      <button className="mini" disabled={!sel.size} onClick={tarefaDaSelecao}>📌 Criar tarefa</button>
+                      <button className="mini" disabled={!sel.size} onClick={() => setSetor(true)}>➡️ Setor</button>
+                      <button className="mini sec" onClick={() => { setSelecionando(false); setSel(new Set()); }}>Cancelar</button>
+                    </div>}
+                    {!selecionando && !ativo.ultima_msg_de_mim && (conv?.sugestao || conv?.resumo) && dispensada !== (conv?.sugestao_em || "x") && <div style={{ background: "#f3f8ff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "7px 10px" }}>
+                      {conv?.resumo && <div className="small muted">🤖 {conv.resumo}</div>}
+                      {conv?.sugestao && <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 4 }}>
+                        <div style={{ flex: 1, whiteSpace: "pre-wrap", fontSize: 13.5 }}><span className="small muted">💡 Sugestão: </span>{conv.sugestao}</div>
+                        <div className="acoes" style={{ flexWrap: "nowrap" }}>
+                          <button className="mini" onClick={() => { setTexto(conv.sugestao); setDispensada(conv.sugestao_em || "x"); }}>Usar</button>
+                          <button className="mini sec" title="Gerar outra" disabled={sugerindo} onClick={() => sugerir()}>{sugerindo ? "…" : "↻"}</button>
+                          <button className="mini sec" title="Dizer como quer responder" onClick={() => setInstrucao("")}>✏️</button>
+                          <button className="mini sec" title="Esconder" onClick={() => setDispensada(conv.sugestao_em || "x")}>✕</button>
+                        </div>
+                      </div>}
+                      {!conv?.sugestao && <button className="mini" style={{ marginTop: 4 }} disabled={sugerindo} onClick={() => sugerir()}>{sugerindo ? "Pensando…" : "💡 Sugerir resposta"}</button>}
+                      {instrucao !== null && <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                        <input value={instrucao} onChange={e => setInstrucao(e.target.value)} placeholder="Ex.: diz que envio amanhã de manhã e pede o CNPJ" autoFocus
+                          onKeyDown={e => { if (e.key === "Enter") sugerir(instrucao); }} />
+                        <button className="mini" disabled={sugerindo || !instrucao.trim()} onClick={() => sugerir(instrucao)}>Gerar</button>
+                      </div>}
+                    </div>}
                     {citada && <div className="small" style={{ display: "flex", gap: 8, alignItems: "center", borderLeft: "3px solid var(--laranja)", background: "var(--paper)", padding: "4px 8px", borderRadius: 6 }}>
                       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>↩ Respondendo {citada.de_mim ? "você" : (citada.autor || "contato")}: {semMarcador(citada.texto) || "[mídia]"}</span>
                       <button className="linkbtn" onClick={() => setCitada(null)}>✕</button></div>}
@@ -526,24 +605,27 @@ export default function ChatApp() {
                 </div>
               </div>
             ))}
-            <button className="mini" style={{ marginTop: 6 }} onClick={analisar} disabled={analisando}>{analisando ? "Analisando…" : "🤖 Procurar tarefas agora"}</button>
+            <div className="acoes" style={{ marginTop: 6 }}>
+              <button className="mini" onClick={analisar} disabled={analisando}>{analisando ? "Analisando…" : "🤖 Procurar tarefas agora"}</button>
+              <button className="mini" onClick={() => setSetor(true)} title="Abre chamado no Acessórias com o que o cliente pediu">➡️ Mandar pro setor</button>
+            </div>
 
             <div style={{ borderTop: "1px solid var(--line)", marginTop: 14, paddingTop: 10 }}>
               <b className="small">Conversar com a IA</b>
-              <p className="muted small" style={{ margin: "2px 0 6px" }}>Ex.: "o que ela está pedindo?" · "escreve uma resposta dizendo que envio amanhã"</p>
+              <div className="acoes" style={{ margin: "4px 0 6px" }}>
+                <button className="mini" onClick={() => perguntarRapido("Sugira a minha resposta para a última mensagem.")} disabled={pensando}>✍️ Sugerir resposta</button>
+                <button className="mini sec" onClick={() => perguntarRapido("O que a pessoa está pedindo? Resuma em 2 linhas.")} disabled={pensando}>O que ela quer?</button>
+              </div>
               <div className="ia-chat">
-                {chat.map((c, i) => (
-                  <div key={i} className={"ia-bolha " + c.role}>
-                    <div style={{ whiteSpace: "pre-wrap" }}>{c.content}</div>
-                    {c.role === "assistant" && !c.content.startsWith("⚠️") && <button className="linkbtn" onClick={() => setTexto(c.content)}>usar como resposta</button>}
-                  </div>
-                ))}
+                {chat.map((c, i) => c.role === "assistant" && !c.content.startsWith("⚠️")
+                  ? <BolhaIA key={i} texto={c.content} aoUsar={(m) => { setTexto(m); setMostrarIA(false); }} />
+                  : <div key={i} className={"ia-bolha " + c.role}><div style={{ whiteSpace: "pre-wrap" }}>{c.content}</div></div>)}
                 {pensando && <div className="ia-bolha assistant muted">pensando…</div>}
               </div>
               <div className="acoes" style={{ marginTop: 6, flexWrap: "nowrap" }}>
                 <textarea value={pergunta} onChange={e => setPergunta(e.target.value)} rows={2} placeholder="Pergunte algo sobre esta conversa…"
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); perguntar(); } }} style={{ flex: 1, resize: "vertical", minHeight: 44 }} />
-                <button className="mini" onClick={perguntar} disabled={pensando || !pergunta.trim()}>Enviar</button>
+                <button className="mini" onClick={() => perguntar()} disabled={pensando || !pergunta.trim()}>Enviar</button>
               </div>
               {chat.length > 0 && <button className="linkbtn small" onClick={() => setChat([])}>limpar conversa</button>}
             </div>
@@ -572,6 +654,10 @@ export default function ChatApp() {
           {legenda && <div className="visor-legenda">{legenda}</div>}
         </div>;
       })()}
+
+      {setor && ativoId && <MandarSetor conversaId={ativoId}
+        midias={(msgs || []).filter(m => m.tem_midia && (!sel.size || sel.has(m.id))).slice(-15).reverse().map(m => ({ id: m.id, nome: `${m.tipo === "imagem" ? "📷" : m.tipo === "audio" ? "🎤" : "📄"} ${m.midia_nome || m.tipo} · ${hora(m.enviada_em)}` }))}
+        onFechar={(msg) => { setSetor(false); if (msg) { setAviso(msg); setSelecionando(false); setSel(new Set()); } }} />}
 
       {modalNova && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setModalNova(false); }}>
         <div className="modal-caixa">

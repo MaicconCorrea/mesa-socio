@@ -6,8 +6,8 @@ import { sair } from "@/app/actions";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
-  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"]] },
-  { titulo: "Em breve", itens: [["#email", "E-mail", "✉️", "embreve"], ["#agenda", "Agenda", "📅", "embreve"], ["#reunioes", "Reuniões", "🎙️", "embreve"], ["#chat", "Google Chat", "🗨️", "embreve"]] },
+  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"], ["/email", "E-mail", "✉️"], ["/agenda", "Agenda", "📅"]] },
+  { titulo: "Em breve", itens: [["#reunioes", "Reuniões", "🎙️", "embreve"], ["#chat", "Google Chat", "🗨️", "embreve"]] },
   { titulo: "Sistema", itens: [["/config", "Configuração", "⚙️"]] },
 ];
 
@@ -17,7 +17,7 @@ export default function Nav({ email }: { email?: string }) {
   const [recolhido, setRecolhido] = useState(false);
   const [espiando, setEspiando] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [n, setN] = useState<{ naoLidas: number; esperando: number; tarefasHoje: number }>({ naoLidas: 0, esperando: 0, tarefasHoje: 0 });
+  const [n, setN] = useState<{ naoLidas: number; esperando: number; tarefasHoje: number; emails: number }>({ naoLidas: 0, esperando: 0, tarefasHoje: 0, emails: 0 });
 
   useEffect(() => { setAberto(false); setEspiando(false); }, [p]);
   useEffect(() => {
@@ -40,6 +40,7 @@ export default function Nav({ email }: { email?: string }) {
   const balao = (href: string) => {
     if (href === "/" && n.tarefasHoje) return <span className="bal" title="tarefas atrasadas ou de hoje">{n.tarefasHoje}</span>;
     if (href === "/whatsapp" && n.naoLidas) return <span className="bal verde" title="mensagens não lidas">{n.naoLidas > 99 ? "99+" : n.naoLidas}</span>;
+    if (href === "/email" && n.emails) return <span className="bal" title="e-mails esperando resposta">{n.emails}</span>;
     return null;
   };
   const entrar = () => { if (!recolhido) return; if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => setEspiando(true), 220); };

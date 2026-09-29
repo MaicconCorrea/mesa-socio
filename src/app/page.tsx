@@ -2,6 +2,7 @@ import AutoRefresh from "@/components/AutoRefresh";
 import TarefaCard from "@/components/TarefaCard";
 import { db } from "@/lib/db";
 import { agoraTexto, fimDoDia, haQuanto } from "@/lib/fmt";
+import AgendaHoje from "@/components/AgendaHoje";
 import { analisarAgora, criarTarefa, grupoResolvido, jaRespondi } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,9 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
   const { data: parados } = ver === "pessoal" ? { data: [] as any[] } : await sb.from("conversas").select("*")
     .eq("modo", "grupo").eq("sem_retorno", true).eq("ultima_msg_de_mim", false)
     .order("ultima_msg_em", { ascending: true });
+
+  const { data: emails } = ver === "pessoal" ? { data: [] as any[] } : await sb.from("email_threads").select("*")
+    .eq("esperando", true).eq("status", "nova").order("recebido_em", { ascending: true }).limit(10);
 
   const { count: naFila } = await sb.from("conversas").select("id", { count: "exact", head: true })
     .eq("pendente_ia", true).neq("modo", "ignorada");
@@ -92,8 +96,19 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
           </div>
 
           <div>
+            <h2>📅 Agenda de hoje <a href="/agenda" className="small" style={{ fontWeight: 400 }}>ver semana</a></h2>
+            <AgendaHoje />
             {ver !== "pessoal" ? (
               <>
+                <h2>✉️ E-mails esperando você {emails?.length ? <span className="contador">{emails.length}</span> : null}</h2>
+                {emails?.length ? emails.map((e) => (
+                  <div className="card" key={e.thread_id}>
+                    <a className="titulo" href={`/email?thread=${e.thread_id}`}>{e.assunto}</a>
+                    <div className="meta">{e.de} · {haQuanto(e.recebido_em)}</div>
+                    {e.resumo ? <div className="trecho" style={{ fontStyle: "normal" }}>🤖 {e.resumo}</div> : null}
+                  </div>
+                )) : <div className="vazio">Nenhum e-mail esperando. 🎉</div>}
+
                 <h2>⏳ Esperando resposta sua {esperando?.length ? <span className="contador">{esperando.length}</span> : null}</h2>
                 {esperando?.length ? esperando.map((c) => (
                   <div className="card" key={c.id}>

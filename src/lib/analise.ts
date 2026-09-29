@@ -1,6 +1,8 @@
 // IA "caçadora": lê as conversas e cria tarefas (pedidos, promessas, reuniões)
 import { db } from "./db";
 import { agoraTexto, dataHora } from "./fmt";
+import { conflitos } from "./agenda";
+import { googleConfigurado } from "./google";
 
 const MODELO = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MODELO_LEVE = () => process.env.ANTHROPIC_MODEL_LEVE || "claude-haiku-4-5-20251001";
@@ -122,7 +124,7 @@ export async function analisarConversa(conversaId: string) {
       origem: "whatsapp",
       hash: `${conversaId}|${tipo}|${normalizar(t.titulo)}`,
     }, { onConflict: "hash", ignoreDuplicates: true }).select("id");
-    if (!error && data?.length) criadas++;
+    if (!error && data?.length) { criadas++; if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo); }
   }
 
   const ultimaDeMim = msgs[msgs.length - 1]?.de_mim;
@@ -230,4 +232,57 @@ ${linhasMensagens(msgs, Infinity).join("\n")}`;
   if (!r.ok) throw new Error(`Anthropic ${r.status}: ${JSON.stringify(j).slice(0, 200)}`);
   await registrarUso(conversaId, j.usage || {});
   return (j.content || []).map((c: any) => c.text || "").join("").trim();
+}
+
+// Reunião combinada bate com algo da agenda? Grava o aviso na tarefa.
+export async function marcarConflito(tarefaId: string, prazoIso: string) {
+  if (!googleConfigurado()) return;
+  try {
+    const ini = new Date(prazoIso), fim = new Date(ini.getTime() + 30 * 60000);
+    const bate = await conflitos(ini, fim);
+    if (bate.length) {
+      const txt = bate.map(e => `${e.titulo} (${dataHora(e.inicio)})`).join("; ");
+      await db().from("tarefas").update({ conflito: `Conflita com: ${txt}` }).eq("id", tarefaId);
+    }
+  } catch { /* agenda ainda não autorizada: ignora */ }
+}
+
+// ---------------- E-mail ----------------
+const MODO_EMAIL = `ORIGEM: E-MAIL (caixa do Maiccon). Capture pedidos feitos a ele, promessas que ele fez nas respostas dele e reuniões combinadas.
+Ignore assinaturas, avisos legais, rodapés e e-mails de sistema. Categoria "trabalho" salvo se for claramente pessoal.
+"precisa_resposta": true se a última mensagem é de outra pessoa e espera retorno dele.`;
+
+export async function analisarEmail(threadId: string) {
+  const { lerThread, textoDaThread } = await import("./gmail");
+  const { minhaConta } = await import("./google");
+  const sb = db();
+  const t = await lerThread(minhaConta(), threadId);
+  const { data: abertas } = await sb.from("tarefas").select("tipo,titulo,prazo").eq("email_thread_id", threadId).eq("status", "aberta");
+  const conteudo = [
+    `Agora: ${agoraTexto()} (horário de Brasília)`,
+    `Assunto: ${t.assunto}`,
+    `Tarefas abertas deste e-mail:`,
+    ...(abertas?.length ? abertas.map((x: any) => `- [${x.tipo}] ${x.titulo}`) : ["- nenhuma"]),
+    ``, `Considere NOVAS apenas as mensagens das últimas 72 horas.`, ``,
+    textoDaThread(t).slice(-14000),
+  ].join("\n");
+  const { obj, uso } = await chamarClaude(`${BASE}\n\n${MODO_EMAIL}\n\n${SAIDA}`, conteudo, MODELO());
+  await sb.from("ia_uso").insert({ conversa_id: null, tokens_in: uso.input_tokens || 0, tokens_out: uso.output_tokens || 0 });
+  let criadas = 0;
+  const ult = t.mensagens[t.mensagens.length - 1];
+  for (const x of obj.tarefas || []) {
+    if (!x?.titulo) continue;
+    const tipo = ["pedido", "promessa", "reuniao"].includes(x.tipo) ? x.tipo : "outro";
+    let prazo: string | null = null;
+    if (x.prazo) { const d = new Date(x.prazo); if (!isNaN(d.getTime())) prazo = d.toISOString(); }
+    const { data, error } = await sb.from("tarefas").upsert({
+      email_thread_id: threadId, tipo, categoria: x.categoria === "pessoal" ? "pessoal" : "trabalho",
+      titulo: String(x.titulo).slice(0, 200), detalhe: x.detalhe || `E-mail: ${t.assunto}`, quem: x.quem || ult?.de || null,
+      prazo, trecho: x.trecho ? String(x.trecho).slice(0, 500) : null, origem: "email",
+      hash: `email|${threadId}|${tipo}|${normalizar(x.titulo)}`,
+    }, { onConflict: "hash", ignoreDuplicates: true }).select("id");
+    if (!error && data?.length) { criadas++; if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo); }
+  }
+  await sb.from("email_threads").update({ analisada_msg_id: ult?.id ?? null, resumo: obj.resumo ? String(obj.resumo).slice(0, 300) : null, ia_erro: null }).eq("thread_id", threadId);
+  return { criadas };
 }

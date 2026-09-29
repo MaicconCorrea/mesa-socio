@@ -1,6 +1,8 @@
 // Grava uma mensagem da Evolution no banco (usado pelo webhook e pela importação de histórico)
 import { contexto, extrairTexto, infoMidia, nomeDoGrupo, soNumero } from "./evolution";
 import { numeroDoJid } from "./fmt";
+import { lerConfig } from "./config";
+import { notificar } from "./push";
 
 const MEU_NOME = /\bmai+c+o+[nm]\b/i; // Maiccon, Maicon, Maicom...
 
@@ -94,5 +96,18 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
     if (deMim) upd.precisa_resposta = false;
   }
   if (Object.keys(upd).length) await sb.from("conversas").update(upd).eq("id", conv.id);
+
+  // 🔔 aviso no celular (só mensagem nova de verdade, não histórico)
+  if (!opcoes.historico && !deMim && Date.now() - quando.getTime() < 10 * 60000) {
+    try {
+      const cfg = await lerConfig();
+      const cx = "📱" + instancia.replace(/^socio-/, "");
+      const corpo = texto.replace(/^\[(imagem|vídeo|áudio)\]\s*/, (m0) => m0.includes("áudio") ? "🎤 áudio " : m0.includes("imagem") ? "📷 foto " : "🎥 vídeo ");
+      if (conv.modo !== "grupo" && cfg.push_whats)
+        await notificar(`${conv.nome || autor} · ${cx}`, corpo, `/whatsapp?c=${conv.id}`, `wa-${conv.id}`);
+      else if (conv.modo === "grupo" && meCitou && cfg.push_grupo_citado)
+        await notificar(`📣 ${conv.nome || "Grupo"} · ${cx}`, `${autor}: ${corpo}`, `/whatsapp?c=${conv.id}`, `wa-${conv.id}`);
+    } catch { /* aviso nunca atrapalha gravar */ }
+  }
   return true;
 }

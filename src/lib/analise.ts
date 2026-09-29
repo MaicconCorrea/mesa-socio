@@ -3,6 +3,8 @@ import { db } from "./db";
 import { agoraTexto, dataHora } from "./fmt";
 import { conflitos } from "./agenda";
 import { googleConfigurado } from "./google";
+import { lerConfig } from "./config";
+import { notificar } from "./push";
 
 const MODELO = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MODELO_LEVE = () => process.env.ANTHROPIC_MODEL_LEVE || "claude-haiku-4-5-20251001";
@@ -124,7 +126,11 @@ export async function analisarConversa(conversaId: string) {
       origem: "whatsapp",
       hash: `${conversaId}|${tipo}|${normalizar(t.titulo)}`,
     }, { onConflict: "hash", ignoreDuplicates: true }).select("id");
-    if (!error && data?.length) { criadas++; if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo); }
+    if (!error && data?.length) {
+      criadas++;
+      if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo);
+      await avisarTarefa(String(t.titulo), tipo, prazo, `/whatsapp?c=${conversaId}`);
+    }
   }
 
   const ultimaDeMim = msgs[msgs.length - 1]?.de_mim;
@@ -281,8 +287,21 @@ export async function analisarEmail(threadId: string) {
       prazo, trecho: x.trecho ? String(x.trecho).slice(0, 500) : null, origem: "email",
       hash: `email|${threadId}|${tipo}|${normalizar(x.titulo)}`,
     }, { onConflict: "hash", ignoreDuplicates: true }).select("id");
-    if (!error && data?.length) { criadas++; if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo); }
+    if (!error && data?.length) {
+      criadas++;
+      if (tipo === "reuniao" && prazo) await marcarConflito(data[0].id, prazo);
+      await avisarTarefa(String(x.titulo), tipo, prazo, `/email?thread=${threadId}`);
+    }
   }
   await sb.from("email_threads").update({ analisada_msg_id: ult?.id ?? null, resumo: obj.resumo ? String(obj.resumo).slice(0, 300) : null, ia_erro: null }).eq("thread_id", threadId);
   return { criadas };
+}
+
+async function avisarTarefa(titulo: string, tipo: string, prazo: string | null, url: string) {
+  try {
+    const cfg = await lerConfig();
+    if (!cfg.push_tarefa_nova) return;
+    const rot = tipo === "promessa" ? "Você prometeu" : tipo === "reuniao" ? "Reunião combinada" : "Pedido pra você";
+    await notificar(`🤖 ${rot}`, `${titulo}${prazo ? " · " + dataHora(prazo) : ""}`, url);
+  } catch { /* segue */ }
 }

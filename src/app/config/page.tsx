@@ -3,6 +3,8 @@ import { estado, instancias, webhookAtual } from "@/lib/evolution";
 import { hojeISO } from "@/lib/fmt";
 import { clientIdContaServico, ESCOPOS, googleConfigurado, minhaConta, tokenGoogle } from "@/lib/google";
 import { ligarWebhook } from "../actions";
+import Avisos from "@/components/Avisos";
+import { pushConfigurado } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,7 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
   const custo = (tin * 3 + tout * 15) / 1_000_000; // Sonnet: US$ 3 / 15 por milhão
 
   const faltando = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
-    "ANTHROPIC_API_KEY", "EVOLUTION_URL", "EVOLUTION_API_KEY", "WEBHOOK_SECRET", "CRON_SECRET", "GOOGLE_SERVICE_ACCOUNT_JSON"]
+    "ANTHROPIC_API_KEY", "EVOLUTION_URL", "EVOLUTION_API_KEY", "WEBHOOK_SECRET", "CRON_SECRET", "GOOGLE_SERVICE_ACCOUNT_JSON", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]
     .filter((k) => !process.env[k]);
 
   return (
@@ -53,6 +55,9 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
             })}
           </tbody>
         </table>
+
+        <h2>🔔 Avisos e resumo do dia</h2>
+        {!pushConfigurado() ? <div className="aviso">Faltam <b>VAPID_PUBLIC_KEY</b> e <b>VAPID_PRIVATE_KEY</b> na Vercel — copie as duas do projeto do Painel DP.</div> : <Avisos />}
 
         <h2>Google (Gmail e Agenda) · {minhaConta()}</h2>
         {!g ? <div className="aviso">Falta <b>GOOGLE_SERVICE_ACCOUNT_JSON</b> na Vercel — copie o valor do projeto do Painel DP.</div> : (

@@ -1,6 +1,9 @@
 {
   "crons": [
     { "path": "/api/cron/analisar", "schedule": "*/2 * * * *" },
-    { "path": "/api/cron/email", "schedule": "*/10 * * * *" }
+    { "path": "/api/cron/avisos", "schedule": "*/2 * * * *" },
+    { "path": "/api/cron/email", "schedule": "*/10 * * * *" },
+    { "path": "/api/cron/resumo?periodo=manha", "schedule": "0 11 * * 1-5" },
+    { "path": "/api/cron/resumo?periodo=tarde", "schedule": "30 20 * * 1-5" }
   ]
 }

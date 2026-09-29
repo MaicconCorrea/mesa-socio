@@ -3,6 +3,8 @@ import { db } from "./db";
 import { listarThreads, type ResumoThread } from "./gmail";
 import { minhaConta } from "./google";
 import { analisarEmail } from "./analise";
+import { lerConfig } from "./config";
+import { avisarUmaVez, notificar } from "./push";
 
 export async function registrarThread(t: ResumoThread) {
   const sb = db();
@@ -17,6 +19,13 @@ export async function registrarThread(t: ResumoThread) {
     ultima_msg_id: t.ultimaMsgId, ultima_minha: t.ultimaMinha, automatico: t.automatico,
     esperando, status, atualizado_em: new Date().toISOString(),
   }, { onConflict: "thread_id" });
+  // 🔔 e-mail novo de pessoa (só se chegou há pouco — a primeira sincronização não dispara avisos antigos)
+  if (mudou && esperando && t.ultimaDeFora && Date.now() - new Date(t.ultimaDeFora).getTime() < 30 * 60000) {
+    try {
+      const cfg = await lerConfig();
+      if (cfg.push_email) await avisarUmaVez(`email|${t.ultimaMsgId}`, () => notificar(`✉️ ${t.de}`, `${t.assunto} — ${t.snippet}`, `/email?thread=${t.id}`, `em-${t.id}`));
+    } catch { /* segue */ }
+  }
 }
 
 export async function sincronizarEmail(analisarAte = 5) {

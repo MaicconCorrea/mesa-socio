@@ -6,7 +6,7 @@ import { sair } from "@/app/actions";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
-  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"], ["/email", "E-mail", "✉️"], ["/agenda", "Agenda", "📅"]] },
+  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"], ["/email", "E-mail", "✉️"], ["/agenda", "Agenda", "📅"], ["/resumo", "Resumo do dia", "☀️"]] },
   { titulo: "Em breve", itens: [["#reunioes", "Reuniões", "🎙️", "embreve"], ["#chat", "Google Chat", "🗨️", "embreve"]] },
   { titulo: "Sistema", itens: [["/config", "Configuração", "⚙️"]] },
 ];

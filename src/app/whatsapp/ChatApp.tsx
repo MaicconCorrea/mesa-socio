@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ligarPush, statusPush } from "@/lib/push-cliente";
 
 type Conversa = {
   id: string; instancia: string; jid: string; nome: string; is_grupo: boolean; modo: string;
@@ -129,12 +130,15 @@ export default function ChatApp() {
     } catch { /* rede */ } finally { setCarregando(false); }
   }, []);
   const avisosRef = useRef(false); avisosRef.current = avisos;
+  const pushLigado = useRef(false);
+  useEffect(() => { statusPush().then(s => { pushLigado.current = s === "ligado"; }).catch(() => {}); }, [avisos]);
   const ativoRef = useRef<string | null>(null); ativoRef.current = ativoId;
   function avisarNovas(novas: Conversa[]) {
     if (!avisosRef.current) return;
     const relevantes = novas.filter(c => document.hidden || c.id !== ativoRef.current);
     if (!relevantes.length) return;
     bip();
+    if (pushLigado.current) return; // o aviso do sistema já vem pelo push (evita duplicar)
     for (const c of relevantes.slice(0, 3)) {
       try {
         const n = new Notification(`${c.nome} · 📱 ${c.instancia.replace(/^socio-/, "")}`, { body: c.ultima_msg_texto || "Mensagem nova", tag: c.id, icon: "/icone-192.png" });
@@ -306,7 +310,11 @@ export default function ChatApp() {
     if (avisos) { setAvisos(false); try { localStorage.setItem("avisos-whats", "0"); } catch {} return; }
     if (!("Notification" in window)) { setAviso("Este navegador não suporta notificações."); return; }
     const p = await Notification.requestPermission();
-    if (p === "granted") { setAvisos(true); bip(); try { localStorage.setItem("avisos-whats", "1"); } catch {} }
+    if (p === "granted") {
+      setAvisos(true); bip(); try { localStorage.setItem("avisos-whats", "1"); } catch {}
+      const e = await ligarPush().catch(err => String(err)); // também liga o aviso com a Mesa fechada
+      if (e) setAviso(e);
+    }
     else setAviso("Notificações bloqueadas — libere nas configurações do navegador para este site.");
   }
   async function sincronizar() {

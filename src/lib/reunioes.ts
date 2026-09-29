@@ -7,7 +7,7 @@ import { lerConfig } from "./config";
 import { notificar } from "./push";
 
 const SISTEMA = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ).
-Você recebe as anotações ou a transcrição de uma reunião. Produza:
+Você recebe as anotações ou a transcrição de uma reunião (a transcrição automática pode errar nomes: "acessórios" costuma ser o sistema "Acessórias", "domínio" o sistema "Domínio"). Produza:
 - "titulo": nome curto da reunião (com o cliente/assunto).
 - "resumo": 3 a 6 frases, o essencial.
 - "decisoes": lista curta do que ficou decidido.
@@ -23,7 +23,7 @@ export async function analisarReuniao(id: string) {
   const { data: r } = await sb.from("reunioes").select("*").eq("id", id).single();
   if (!r) throw new Error("reunião não encontrada");
   let texto = r.texto as string | null;
-  if (!texto && r.doc_id) texto = await textoDoDoc(r.doc_id);
+  if (!texto && r.doc_id) { texto = await textoDoDoc(r.doc_id); await sb.from("reunioes").update({ texto: texto.slice(0, 200000) }).eq("id", id); }
   if (!texto || texto.length < 40) throw new Error("Documento vazio ou curto demais.");
 
   const conteudo = `Agora: ${agoraTexto()}\nData da reunião: ${r.data ? dataHora(r.data) : "desconhecida"}\nNome do documento: ${r.titulo}\n\n${texto.slice(0, 60000)}`;

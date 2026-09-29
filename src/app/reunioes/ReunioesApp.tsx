@@ -13,6 +13,9 @@ export default function ReunioesApp() {
   const [ocupado, setOcupado] = useState("");
   const [colar, setColar] = useState<{ titulo: string; data: string; texto: string } | null>(null);
   const [email, setEmail] = useState<{ para: string; texto: string } | null>(null);
+  const [transcricao, setTranscricao] = useState<{ id: string; texto: string; falhas: string[] } | null>(null);
+  const [verTexto, setVerTexto] = useState(false);
+  const [buscaTexto, setBuscaTexto] = useState("");
 
   async function carregar() {
     const j = await fetch("/api/reunioes/lista").then(r => r.json());
@@ -22,6 +25,19 @@ export default function ReunioesApp() {
   useEffect(() => { carregar().then(l => { const r = new URLSearchParams(location.search).get("r"); setSel(r || l[0]?.id || null); }); }, []);
 
   const r = lista.find(x => x.id === sel) || null;
+  useEffect(() => { setVerTexto(false); setBuscaTexto(""); }, [sel]);
+  async function abrirTexto() {
+    setVerTexto(v => !v);
+    if (!sel || transcricao?.id === sel) return;
+    const j = await fetch(`/api/reunioes/texto?id=${sel}`).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    setTranscricao({ id: sel, texto: j.erro ? "Erro: " + j.erro : j.texto || "(sem texto)", falhas: j.falhas || [] });
+  }
+  function baixarTexto() {
+    if (!transcricao || !r) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([transcricao.texto], { type: "text/plain;charset=utf-8" }));
+    a.download = `${r.titulo.replace(/[^\w\sÀ-ú-]/g, "").slice(0, 60)}.txt`; a.click();
+  }
   const minhas = useMemo(() => tarefas.filter(t => t.reuniao_id === sel), [tarefas, sel]);
 
   async function buscar() {
@@ -102,6 +118,22 @@ export default function ReunioesApp() {
               {r.ia_erro && <div className="aviso erro small" style={{ marginTop: 8 }}>{r.ia_erro}</div>}
               {r.resumo && <><h2>Resumo</h2><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{r.resumo}</p></>}
               {!!r.decisoes?.length && <><h2>Decisões</h2><ul style={{ margin: 0 }}>{r.decisoes.map((d, i) => <li key={i}>{d}</li>)}</ul></>}
+              <h2 style={{ cursor: "pointer" }} onClick={abrirTexto}>📝 {r.origem === "gravada" ? "Transcrição completa" : "Texto completo"} <span className="small" style={{ fontWeight: 400 }}>{verTexto ? "▲ esconder" : "▼ mostrar"}</span></h2>
+              {verTexto && (!transcricao || transcricao.id !== sel ? <p className="muted small">Carregando…</p> : <>
+                {transcricao.falhas.length > 0 && <div className="aviso small">⚠️ {transcricao.falhas.length} trecho(s) não foram transcritos: {transcricao.falhas[0]}</div>}
+                <div className="acoes" style={{ margin: "4px 0 6px" }}>
+                  <input value={buscaTexto} onChange={e => setBuscaTexto(e.target.value)} placeholder="Procurar no texto…" style={{ maxWidth: 260 }} />
+                  <button className="mini sec" onClick={() => navigator.clipboard.writeText(transcricao.texto)}>Copiar</button>
+                  <button className="mini sec" onClick={baixarTexto}>⬇ Baixar .txt</button>
+                </div>
+                <div style={{ whiteSpace: "pre-wrap", maxHeight: 420, overflowY: "auto", background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 8, padding: "10px 12px", fontSize: 13.5, lineHeight: 1.55 }}
+                  dangerouslySetInnerHTML={{ __html: (() => {
+                    const esc = transcricao.texto.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+                    const b = buscaTexto.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    return b.length >= 2 ? esc.replace(new RegExp(b, "gi"), m => `<mark>${m}</mark>`) : esc;
+                  })() }} />
+              </>)}
+
               <h2>Tarefas</h2>
               {!minhas.length && <p className="muted small">Nenhuma.</p>}
               {minhas.map(t => (

@@ -14,6 +14,8 @@ async function viaOpenAI(bytes: Buffer, mime: string) {
   form.append("file", new Blob([new Uint8Array(bytes)], { type: mime.split(";")[0] }), `audio.${ext}`);
   form.append("model", process.env.OPENAI_TRANSCRICAO || "gpt-4o-mini-transcribe");
   form.append("language", "pt");
+  // vocabulário do escritório (ajuda a acertar nomes próprios e siglas)
+  form.append("prompt", process.env.VOCABULARIO_TRANSCRICAO || "Outtax, Maiccon, Acessórias, Digisac, Domínio, Onvio, eSocial, DCTFWeb, FGTS Digital, Simples Nacional, DAS, PGDAS, ISS, ICMS, NFS-e, e-CAC, SERPRO, pró-labore, holerite, folha de pagamento, pré-nota, certidão, CND, alvará, contrato social, BPO financeiro, Nibo, Conexa, Supabase, Vercel, Evolution, WhatsApp, Google Meet.");
   const r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: form });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`OpenAI ${r.status}: ${JSON.stringify(j).slice(0, 200)}`);

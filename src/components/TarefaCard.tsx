@@ -13,7 +13,7 @@ export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string
         {t.prazo ? <>⏰ {dataHora(t.prazo)} · </> : null}
         {t.quem ? <>👤 {t.quem} · </> : null}
         {t.conversas ? (
-          <a href={`/conversas/${t.conversa_id}`}>💬 {t.conversas.nome} ({t.conversas.instancia})</a>
+          <a href={`/whatsapp?c=${t.conversa_id}`}>💬 {t.conversas.nome} ({t.conversas.instancia})</a>
         ) : t.origem === "manual" ? "✍️ anotação manual" : null}
       </div>
       {t.detalhe ? <div className="meta">{t.detalhe}</div> : null}

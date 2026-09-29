@@ -18,6 +18,9 @@ export async function middleware(req: NextRequest) {
     }
   );
   const { data } = await supabase.auth.getUser();
+  if (!data.user && req.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ erro: "não autenticado" }, { status: 401 });
+  }
   if (!data.user && !req.nextUrl.pathname.startsWith("/login")) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
@@ -29,5 +32,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // webhook e cron têm senha própria; o resto exige login
-  matcher: ["/((?!api/webhook|api/cron|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/webhook|api/cron|_next/static|_next/image|favicon.ico|logo-branco.png|logo-cor.png|manifest.json|sw.js|icone-192.png|icone-512.png).*)"],
 };

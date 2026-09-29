@@ -1,4 +1,3 @@
-import Topo from "@/components/Topo";
 import { db } from "@/lib/db";
 import { estado, instancias, webhookAtual } from "@/lib/evolution";
 import { hojeISO } from "@/lib/fmt";
@@ -23,7 +22,6 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
 
   return (
     <>
-      <Topo />
       <div className="conteudo">
         <h1>Configuração</h1>
         {searchParams.msg ? <div className="aviso">{searchParams.msg}</div> : null}

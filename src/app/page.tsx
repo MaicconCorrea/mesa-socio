@@ -1,4 +1,3 @@
-import Topo from "@/components/Topo";
 import AutoRefresh from "@/components/AutoRefresh";
 import TarefaCard from "@/components/TarefaCard";
 import { db } from "@/lib/db";
@@ -36,7 +35,6 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
 
   return (
     <>
-      <Topo />
       <AutoRefresh />
       <div className="conteudo">
         <h1>Bom trabalho, Maiccon 👋</h1>
@@ -101,14 +99,14 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
                   <div className="card" key={c.id}>
                     <div className="linha">
                       <span className="selo inst">{c.instancia}</span>
-                      <a className="titulo" href={`/conversas/${c.id}`}>{c.is_grupo ? "👥 " : ""}{c.nome}</a>
+                      <a className="titulo" href={`/whatsapp?c=${c.id}`}>{c.is_grupo ? "👥 " : ""}{c.nome}</a>
                     </div>
                     <div className="meta">{haQuanto(c.ultima_msg_em)}</div>
                     <div className="trecho">{c.ultima_msg_texto}</div>
                     {c.resumo ? <div className="meta">🤖 {c.resumo}</div> : null}
                     <div className="acoes">
                       <form action={jaRespondi}><input type="hidden" name="id" value={c.id} /><button className="ok">Já respondi</button></form>
-                      <a className="botao" href={`/conversas/${c.id}`}>Mudar modo</a>
+                      <a className="botao" href={`/whatsapp?c=${c.id}`}>Mudar modo</a>
                     </div>
                   </div>
                 )) : <div className="vazio">Ninguém esperando. 🎉</div>}
@@ -119,7 +117,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
                   <div className="card parado" key={c.id}>
                     <div className="linha">
                       <span className="selo inst">{c.instancia}</span>
-                      <a className="titulo" href={`/conversas/${c.id}`}>👥 {c.nome}</a>
+                      <a className="titulo" href={`/whatsapp?c=${c.id}`}>👥 {c.nome}</a>
                     </div>
                     <div className="meta">parado {haQuanto(c.ultima_msg_em)}</div>
                     {c.resumo ? <div className="trecho">🤖 {c.resumo}</div> : <div className="trecho">{c.ultima_msg_texto}</div>}

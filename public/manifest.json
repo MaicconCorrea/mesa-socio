@@ -1,0 +1,12 @@
+{
+  "name": "Mesa do Sócio · Outtax",
+  "short_name": "Mesa Outtax",
+  "start_url": "/whatsapp",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#152c6b",
+  "icons": [
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

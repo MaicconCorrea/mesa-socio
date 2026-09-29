@@ -205,3 +205,29 @@ export async function analisarPendentes(limite = 8) {
   }
   return resultado;
 }
+
+// Chat com a IA sobre uma conversa ("o que ela quer?", "rascunha a resposta")
+export async function perguntarIA(conversaId: string, historico: { role: "user" | "assistant"; content: string }[], pergunta: string) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("ANTHROPIC_API_KEY não configurada na Vercel");
+  const sb = db();
+  const { data: conv } = await sb.from("conversas").select("*").eq("id", conversaId).single();
+  const { data: msgsDesc } = await sb.from("mensagens").select("*").eq("conversa_id", conversaId)
+    .order("enviada_em", { ascending: false }).limit(60);
+  const msgs = (msgsDesc || []).reverse();
+  const sistema = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ).
+Responda em português, direto e curto. Quando pedirem uma resposta para o contato, escreva só o texto da mensagem, no tom do Maiccon (educado, próximo, objetivo), pronto para colar no WhatsApp.
+Agora: ${agoraTexto()}.
+Conversa de WhatsApp com ${conv?.nome || "contato"} (${conv?.is_grupo ? "grupo" : "individual"}, número ${conv?.instancia}):
+${linhasMensagens(msgs, Infinity).join("\n")}`;
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODELO(), max_tokens: 1200, system: sistema,
+      messages: [...historico.slice(-10), { role: "user", content: pergunta }] }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`Anthropic ${r.status}: ${JSON.stringify(j).slice(0, 200)}`);
+  await registrarUso(conversaId, j.usage || {});
+  return (j.content || []).map((c: any) => c.text || "").join("").trim();
+}

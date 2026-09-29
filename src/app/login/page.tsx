@@ -18,16 +18,16 @@ export default function Login() {
   }
 
   return (
-    <div className="login">
-      <h1>OUTTAX · Mesa do Sócio</h1>
-      <label>E-mail</label>
-      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
-      <label>Senha</label>
-      <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password"
-        onKeyDown={(e) => { if (e.key === "Enter") entrar(); }} />
-      {erro ? <div className="aviso">{erro}</div> : null}
-      <div style={{ marginTop: 16 }}>
-        <button className="primario" onClick={entrar} disabled={carregando}>{carregando ? "Entrando..." : "Entrar"}</button>
+    <div className="login-wrap" style={{ margin: -28 }}>
+      <div className="login-card">
+        <img src="/logo-cor.png" alt="Outtax" style={{ height: 30, marginBottom: 14 }} />
+        <h1 style={{ fontSize: 20 }}>Mesa do Sócio</h1>
+        <p className="sub">Seu WhatsApp, tarefas e compromissos num lugar só.</p>
+        <label>E-mail<input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoFocus /></label>
+        <label style={{ marginTop: 10 }}>Senha<input value={senha} onChange={(e) => setSenha(e.target.value)} type="password"
+          onKeyDown={(e) => { if (e.key === "Enter") entrar(); }} /></label>
+        {erro ? <div className="aviso erro" style={{ marginTop: 12 }}>{erro}</div> : null}
+        <button style={{ marginTop: 16, width: "100%" }} onClick={entrar} disabled={carregando}>{carregando ? "Entrando..." : "Entrar"}</button>
       </div>
     </div>
   );

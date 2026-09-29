@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { enviarTextoCitando } from "@/lib/evolution";
+import { enviarChat, GCHAT } from "@/lib/gchat";
 import { marcarLidasAoResponder, registrarEnvio } from "@/lib/envio";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
@@ -20,6 +21,11 @@ export async function POST(req: NextRequest) {
     if (q) citada = { id: q.msg_id, texto: q.texto, deMim: q.de_mim };
   }
   try {
+    if (c.instancia === GCHAT) {
+      const r = await enviarChat(c.jid, t);
+      await registrarEnvio(sb, c, { msg_id: r.id, texto: t, tipo: "texto" });
+      return NextResponse.json({ ok: true });
+    }
     await marcarLidasAoResponder(sb, c);
     const r = await enviarTextoCitando(c.instancia, c.jid, t, citada);
     await registrarEnvio(sb, c, { msg_id: r.id, texto: t, tipo: "texto", citada_texto: citada?.texto || null });

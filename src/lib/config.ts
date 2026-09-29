@@ -15,6 +15,7 @@ export const PADRAO = {
   resumo_whats_de: "",       // instância que envia (vazio = a primeira)
   estilo_escrita: "",        // "meu jeito de escrever" (a IA imita nas sugestões)
   sugestao_auto: true,       // IA deixa uma resposta sugerida pronta em cada conversa
+  chat_meu_id: "",           // meu users/… no Google Chat (descoberto sozinho)
 };
 export type Config = typeof PADRAO;
 

@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
   const sb = db();
   const { data: c } = await sb.from("conversas").select("*").eq("id", id).single();
   if (!c) return NextResponse.json({ erro: "conversa não encontrada" }, { status: 404 });
+  if (c.instancia === "gchat") return NextResponse.json({ erro: "No Google Chat a Mesa envia só texto por enquanto." }, { status: 400 });
   try {
     await marcarLidasAoResponder(sb, c);
     const r = await enviarArquivo(c.instancia, c.jid, { base64, mime: mime || "application/octet-stream", nome: nome || "arquivo", legenda });

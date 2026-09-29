@@ -6,8 +6,7 @@ import { sair } from "@/app/actions";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
-  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"], ["/email", "E-mail", "✉️"], ["/agenda", "Agenda", "📅"], ["/reunioes", "Reuniões", "🎙️"], ["/resumo", "Resumo do dia", "☀️"]] },
-  { titulo: "Em breve", itens: [["#chat", "Google Chat", "🗨️", "embreve"]] },
+  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"], ["/whatsapp?cx=gchat", "Google Chat", "🗨️"], ["/email", "E-mail", "✉️"], ["/agenda", "Agenda", "📅"], ["/reunioes", "Reuniões", "🎙️"], ["/resumo", "Resumo do dia", "☀️"]] },
   { titulo: "Sistema", itens: [["/config", "Configuração", "⚙️"]] },
 ];
 
@@ -36,7 +35,7 @@ export default function Nav({ email }: { email?: string }) {
     try { localStorage.setItem("menu-recolhido", recolhido ? "1" : "0"); } catch {}
   }, [recolhido]);
 
-  const ativo = (href: string) => (href === "/" ? p === "/" : p.startsWith(href));
+  const ativo = (href: string) => (href === "/" ? p === "/" : href.includes("?") ? false : p.startsWith(href));
   const balao = (href: string) => {
     if (href === "/" && n.tarefasHoje) return <span className="bal" title="tarefas atrasadas ou de hoje">{n.tarefasHoje}</span>;
     if (href === "/whatsapp" && n.naoLidas) return <span className="bal verde" title="mensagens não lidas">{n.naoLidas > 99 ? "99+" : n.naoLidas}</span>;
@@ -67,6 +66,7 @@ export default function Nav({ email }: { email?: string }) {
                 const dentro = <><span className="lateral-icone">{icone}</span><span className="lateral-texto">{rotulo}</span>{balao(href)}</>;
                 return extra === "embreve"
                   ? <a key={href} className="embreve" title="em breve">{dentro}</a>
+                  : href.includes("?") ? <a key={href} href={href} title={recolhido ? rotulo : undefined}>{dentro}</a>
                   : <Link key={href} href={href} className={ativo(href) ? "ativo" : ""} title={recolhido ? rotulo : undefined}>{dentro}</Link>;
               })}
             </div>

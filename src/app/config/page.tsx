@@ -16,7 +16,8 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
   })));
 
   const testar = async (esc: string) => { try { await tokenGoogle(esc); return "ok"; } catch (e: any) { return String(e?.message ?? e); } };
-  const g = googleConfigurado() ? { gmail: await testar(ESCOPOS.gmail), agenda: await testar(ESCOPOS.agenda), drive: await testar(ESCOPOS.drive) } : null;
+  const g = googleConfigurado() ? { gmail: await testar(ESCOPOS.gmail), agenda: await testar(ESCOPOS.agenda), drive: await testar(ESCOPOS.drive),
+    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio) } : null;
 
   const inicioMes = `${hojeISO().slice(0, 7)}-01T00:00:00-03:00`;
   const { data: uso } = await db().from("ia_uso").select("tokens_in,tokens_out").gte("em", inicioMes);
@@ -71,14 +72,16 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
               <tr><td><b>Gmail</b></td><td>{g.gmail === "ok" ? "🟢 funcionando" : `🔴 ${g.gmail}`}</td></tr>
               <tr><td><b>Agenda</b></td><td>{g.agenda === "ok" ? "🟢 funcionando" : `🔴 ${g.agenda}`}</td></tr>
               <tr><td><b>Drive (reuniões)</b></td><td>{g.drive === "ok" ? "🟢 funcionando" : `🔴 ${g.drive}`}</td></tr>
+              <tr><td><b>Google Chat</b></td><td>{g.chat === "ok" ? "🟢 autorizado" : `🔴 ${g.chat}`}</td></tr>
+              <tr><td><b>Nomes (diretório)</b></td><td>{g.diretorio === "ok" ? "🟢 autorizado" : `🔴 ${g.diretorio}`}</td></tr>
             </tbody>
           </table>
         )}
-        {g && (g.gmail !== "ok" || g.agenda !== "ok" || g.drive !== "ok") ? (
+        {g && Object.values(g).some(v => v !== "ok") ? (
           <div className="card small" style={{ marginTop: 8 }}>
             <b>Como liberar:</b> admin.google.com → Segurança → Acesso e controle de dados → Controles de API → <b>Delegação em todo o domínio</b> → editar o ID do cliente <code>{clientIdContaServico()}</code> e ACRESCENTAR (sem apagar os que já existem) os escopos que faltam — a lista final precisa conter:
-            <pre style={{ whiteSpace: "pre-wrap", background: "var(--paper)", padding: 8, borderRadius: 6 }}>{ESCOPOS.gmail},{ESCOPOS.agenda},{ESCOPOS.drive}</pre>
-            Se aparecer "Calendar API não está ativa": console.cloud.google.com → projeto da conta de serviço → APIs e serviços → ativar <b>Google Calendar API</b> e <b>Google Drive API</b>.
+            <pre style={{ whiteSpace: "pre-wrap", background: "var(--paper)", padding: 8, borderRadius: 6 }}>{[ESCOPOS.gmail, ESCOPOS.agenda, ESCOPOS.drive, ESCOPOS.chatEspacos, ESCOPOS.chatMensagens, ESCOPOS.chatMembros, ESCOPOS.diretorio].join(",")}</pre>
+            Se aparecer "Calendar API não está ativa": console.cloud.google.com → projeto da conta de serviço → APIs e serviços → ativar <b>Google Calendar API</b>, <b>Google Drive API</b>, <b>Google Chat API</b> e <b>People API</b>. No Google Chat API, abra a aba <b>Configuração</b> e preencha nome do app "Mesa do Sócio", avatar <code>https://mesa-socio.vercel.app/icone-192.png</code> e uma descrição (é exigência do Google, mesmo sem usar bot).
           </div>
         ) : null}
 

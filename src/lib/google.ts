@@ -7,6 +7,10 @@ export const ESCOPOS = {
   gmail: "https://www.googleapis.com/auth/gmail.modify",
   agenda: "https://www.googleapis.com/auth/calendar",
   drive: "https://www.googleapis.com/auth/drive.readonly",
+  chatEspacos: "https://www.googleapis.com/auth/chat.spaces.readonly",
+  chatMensagens: "https://www.googleapis.com/auth/chat.messages",
+  chatMembros: "https://www.googleapis.com/auth/chat.memberships.readonly",
+  diretorio: "https://www.googleapis.com/auth/directory.readonly",
 };
 
 export const minhaConta = () => (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();
@@ -36,7 +40,7 @@ export async function tokenGoogle(escopo: string, conta = minhaConta()): Promise
   const j = await r.json();
   if (!r.ok || !j.access_token) {
     const e = String(j.error_description ?? j.error ?? r.status);
-    const qual = escopo === ESCOPOS.agenda ? "a Agenda" : escopo === ESCOPOS.drive ? "o Drive (reuniões)" : "o Gmail";
+    const qual = escopo === ESCOPOS.agenda ? "a Agenda" : escopo === ESCOPOS.drive ? "o Drive (reuniões)" : escopo.includes("chat") ? "o Google Chat" : escopo === ESCOPOS.diretorio ? "o diretório (nomes do Chat)" : "o Gmail";
     throw new Error(/unauthorized_client|not authorized/i.test(e)
       ? `O Google ainda não autorizou o painel a acessar ${qual} (falta o escopo na delegação em todo o domínio no admin.google.com).`
       : `Google: ${e}`);

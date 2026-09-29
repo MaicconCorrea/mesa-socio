@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { donoDaInstancia, fotoPerfil, historico } from "@/lib/evolution";
 import { gravarMensagem } from "@/lib/gravar";
+import { GCHAT, sincronizarChat } from "@/lib/gchat";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
 export const maxDuration = 60;
@@ -14,6 +15,14 @@ export async function POST(req: NextRequest) {
   const { data: c } = await sb.from("conversas").select("*").eq("id", id).single();
   if (!c) return NextResponse.json({ erro: "conversa não encontrada" }, { status: 404 });
   if (c.modo === "ignorada") return NextResponse.json({ ok: true, importadas: 0 });
+  if (c.instancia === GCHAT) {
+    if (c.historico_em && !forcar && !conferir) return NextResponse.json({ ok: true, importadas: 0, ja: true });
+    try {
+      const r = await sincronizarChat({ espaco: c.jid, historico: !!forcar, diasPrimeira: forcar ? 60 : 14 });
+      if (!conferir) await sb.from("conversas").update({ historico_em: new Date().toISOString() }).eq("id", c.id);
+      return NextResponse.json({ ok: true, importadas: r.mensagens });
+    } catch (e) { return erro(e); }
+  }
   if (c.historico_em && !forcar && !conferir) return NextResponse.json({ ok: true, importadas: 0, ja: true });
   try {
     const dono = await donoDaInstancia(c.instancia);

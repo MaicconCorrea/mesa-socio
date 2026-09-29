@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analisarPendentes } from "@/lib/analise";
 import { transcreverPendentes } from "@/lib/transcrever";
+import { sincronizarChat } from "@/lib/gchat";
+import { googleConfigurado } from "@/lib/google";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -15,6 +17,8 @@ export async function GET(req: NextRequest) {
 
   let audios: any = {};
   try { audios = await transcreverPendentes(8); } catch (e: any) { audios = { erro: e?.message }; }
+  let chat: any = {};
+  if (googleConfigurado()) { try { chat = await sincronizarChat({ diasPrimeira: 3 }); } catch (e: any) { chat = { erro: e?.message }; } }
   const r = await analisarPendentes(8);
-  return NextResponse.json({ ok: true, audios, ...r });
+  return NextResponse.json({ ok: true, audios, chat, ...r });
 }

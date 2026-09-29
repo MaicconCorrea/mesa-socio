@@ -116,7 +116,7 @@ export default function ChatApp() {
   }, []);
 
   const cx = (inst: string) => `cx cx-${Math.max(0, conexoes.indexOf(inst)) % 3}`;
-  const rotuloCx = (inst: string) => "📱 " + inst.replace(/^socio-/, "");
+  const rotuloCx = (inst: string) => inst === "gchat" ? "🗨️ Google Chat" : "📱 " + inst.replace(/^socio-/, "");
 
   // ---- lista (atualiza a cada 4s) ----
   const carregarLista = useCallback(async () => {
@@ -163,8 +163,11 @@ export default function ChatApp() {
 
   // abre a conversa vinda de um link (?c=id)
   useEffect(() => {
-    const c = new URLSearchParams(window.location.search).get("c");
+    const sp = new URLSearchParams(window.location.search);
+    const c = sp.get("c");
     if (c) { setAtivoId(c); setViewMobile("conversa"); }
+    const cxp = sp.get("cx");
+    if (cxp) setConexao(cxp);
   }, []);
 
   // ---- conversa ativa (atualiza a cada 3s) ----
@@ -392,7 +395,7 @@ export default function ChatApp() {
         <h1 style={{ margin: 0 }}>WhatsApp</h1>
         <span className="muted small">Atualiza sozinho · {conexoes.map(c => <span key={c} className={cx(c)} style={{ marginRight: 4 }}>{rotuloCx(c)}</span>)}</span>
         <div className="acoes" style={{ marginLeft: "auto" }}>
-          <button onClick={() => { setNova(n => ({ ...n, instancia: n.instancia || conexoes[0] || "" })); setModalNova(true); }}>+ Nova conversa</button>
+          <button onClick={() => { setNova(n => ({ ...n, instancia: n.instancia || conexoes.find(c => c !== "gchat") || "" })); setModalNova(true); }}>+ Nova conversa</button>
           <button className="sec" onClick={sincronizar} title="Traz pro painel as conversas dos últimos 90 dias do celular">🔄 Sincronizar conversas</button>
           <button className="sec" onClick={alternarAvisos} title="Som e notificação quando chegar mensagem">{avisos ? "🔔 Avisos ligados" : "🔕 Ligar avisos"}</button>
         </div>
@@ -564,7 +567,7 @@ export default function ChatApp() {
                       : <div style={{ display: "flex", gap: 8 }}
                           onDragOver={e => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
                           onDrop={e => { if (e.dataTransfer.files?.length) { e.preventDefault(); adicionarArquivos(e.dataTransfer.files); } }}>
-                          <button type="button" className="sec" title="Anexar foto, PDF ou arquivo (até 3 MB)" onClick={() => inputArq.current?.click()}>📎</button>
+                          {ativo.instancia !== "gchat" && <button type="button" className="sec" title="Anexar foto, PDF ou arquivo (até 3 MB)" onClick={() => inputArq.current?.click()}>📎</button>}
                           <input ref={inputArq} type="file" multiple hidden onChange={e => { adicionarArquivos(e.target.files); e.target.value = ""; }} />
                           <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2}
                             onPaste={e => { if (e.clipboardData.files?.length) { e.preventDefault(); adicionarArquivos(e.clipboardData.files); } }}
@@ -573,7 +576,7 @@ export default function ChatApp() {
                             style={{ flex: 1, minHeight: 44, resize: "none" }} />
                           {texto.trim() || arquivos.length
                             ? <button onClick={enviar} disabled={enviando}>{enviando ? "Enviando…" : arquivos.length ? `Enviar ${arquivos.length}` : "Enviar"}</button>
-                            : <button className="sec" title="Gravar áudio" onClick={iniciarGravacao} disabled={enviando}>{enviando ? "…" : "🎤"}</button>}
+                            : ativo.instancia === "gchat" ? <button disabled>Enviar</button> : <button className="sec" title="Gravar áudio" onClick={iniciarGravacao} disabled={enviando}>{enviando ? "…" : "🎤"}</button>}
                         </div>}
                   </>}
                 {aviso && <p className="small" style={{ color: aviso.startsWith("Não") || aviso.startsWith("IA:") ? "var(--vermelho)" : "var(--verde)", margin: 0 }}>{aviso}</p>}
@@ -664,7 +667,7 @@ export default function ChatApp() {
           <b style={{ fontSize: 16 }}>Nova conversa</b>
           <label style={{ marginTop: 10 }}>Enviar pelo número
             <select value={nova.instancia} onChange={e => setNova({ ...nova, instancia: e.target.value })}>
-              {conexoes.map(c => <option key={c} value={c}>{rotuloCx(c)}</option>)}
+              {conexoes.filter(c => c !== "gchat").map(c => <option key={c} value={c}>{rotuloCx(c)}</option>)}
             </select></label>
           <label style={{ marginTop: 8 }}>Telefone (DDD + número)<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
           <label style={{ marginTop: 8 }}>Nome (opcional)<input value={nova.nome} onChange={e => setNova({ ...nova, nome: e.target.value })} /></label>

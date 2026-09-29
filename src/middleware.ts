@@ -32,5 +32,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // webhook e cron têm senha própria; o resto exige login
-  matcher: ["/((?!api/webhook|api/cron|api/gravacao|_next/static|_next/image|favicon.ico|logo-branco.png|logo-cor.png|manifest.json|sw.js|icone-192.png|icone-512.png).*)"],
+  matcher: ["/((?!api/webhook|api/cron|api/gravacao|api/ext|api/painel|_next/static|_next/image|favicon.ico|logo-branco.png|logo-cor.png|manifest.json|sw.js|icone-192.png|icone-512.png).*)"],
 };

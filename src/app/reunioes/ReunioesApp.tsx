@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-type R = { id: string; titulo: string; data: string | null; link: string | null; origem: string; resumo: string | null; decisoes: string[] | null; participantes: string[] | null; analisada_em: string | null; ia_erro: string | null };
+type R = { id: string; titulo: string; data: string | null; link: string | null; origem: string; resumo: string | null; decisoes: string[] | null; participantes: string[] | null; analisada_em: string | null; ia_erro: string | null;
+  setor?: string | null; autor_nome?: string | null; tarefas_equipe?: { quem: string; titulo: string; prazo: string | null }[] | null };
+const SETOR_NOME: Record<string, string> = { DP: "DP", CONTABIL: "Contábil", BPO: "BPO", FISCAL: "Fiscal", LEGALIZACAO: "Legalização", FINANCEIRO: "Financeiro", SOCIOS: "Sócios" };
 const dt = (s?: string | null) => s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
@@ -16,6 +18,7 @@ export default function ReunioesApp() {
   const [transcricao, setTranscricao] = useState<{ id: string; texto: string; falhas: string[] } | null>(null);
   const [verTexto, setVerTexto] = useState(false);
   const [buscaTexto, setBuscaTexto] = useState("");
+  const [aba, setAba] = useState("minhas");
 
   async function carregar() {
     const j = await fetch("/api/reunioes/lista").then(r => r.json());
@@ -25,6 +28,8 @@ export default function ReunioesApp() {
   useEffect(() => { carregar().then(l => { const r = new URLSearchParams(location.search).get("r"); setSel(r || l[0]?.id || null); }); }, []);
 
   const r = lista.find(x => x.id === sel) || null;
+  const setoresComReuniao = Array.from(new Set(lista.map(x => x.setor).filter(s => s && s !== "SOCIOS"))) as string[];
+  const visiveis = lista.filter(x => aba === "minhas" ? (!x.setor || x.setor === "SOCIOS") : aba === "equipe" ? (x.setor && x.setor !== "SOCIOS") : x.setor === aba);
   useEffect(() => { setVerTexto(false); setBuscaTexto(""); }, [sel]);
   async function abrirTexto() {
     setVerTexto(v => !v);
@@ -97,11 +102,16 @@ export default function ReunioesApp() {
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(240px,320px) 1fr", gap: 16, marginTop: 12 }}>
         <div>
-          {!lista.length && <p className="muted small">Nenhuma reunião ainda. Clique em "Buscar no Drive".</p>}
-          {lista.map(x => (
+          <div className="abas" style={{ marginBottom: 8 }}>
+            <a href="#" className={aba === "minhas" ? "ativa" : ""} onClick={e => { e.preventDefault(); setAba("minhas"); }}>Minhas</a>
+            <a href="#" className={aba === "equipe" ? "ativa" : ""} onClick={e => { e.preventDefault(); setAba("equipe"); }}>Equipe (todas)</a>
+            {setoresComReuniao.map(s0 => <a key={s0} href="#" className={aba === s0 ? "ativa" : ""} onClick={e => { e.preventDefault(); setAba(s0); }}>{SETOR_NOME[s0] || s0}</a>)}
+          </div>
+          {!visiveis.length && <p className="muted small">Nenhuma reunião aqui.</p>}
+          {visiveis.map(x => (
             <div key={x.id} className="card" onClick={() => setSel(x.id)} style={{ cursor: "pointer", borderLeft: x.id === sel ? "4px solid var(--laranja)" : undefined, padding: "8px 12px" }}>
               <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 13.5 }}>{x.titulo}</div>
-              <div className="meta">{dt(x.data)} · {x.origem === "colado" ? "📋 colado" : x.origem === "gravada" ? "🔴 gravada" : "🎥 Meet"} · {x.analisada_em ? `${tarefas.filter(t => t.reuniao_id === x.id).length} tarefa(s)` : x.ia_erro ? "⚠️ erro" : "⏳ a analisar"}</div>
+              <div className="meta">{x.setor && x.setor !== "SOCIOS" ? <b>{SETOR_NOME[x.setor] || x.setor} · {x.autor_nome} · </b> : null}{dt(x.data)} · {x.origem === "colado" ? "📋 colado" : x.origem === "gravada" ? "🔴 gravada" : "🎥 Meet"} · {x.analisada_em ? `${tarefas.filter(t => t.reuniao_id === x.id).length} tarefa(s)` : x.ia_erro ? "⚠️ erro" : "⏳ a analisar"}</div>
             </div>
           ))}
         </div>
@@ -114,7 +124,7 @@ export default function ReunioesApp() {
                 <button className="sec" onClick={() => analisar(r.id)} disabled={!!ocupado}>🤖 {r.analisada_em ? "Reanalisar" : "Analisar"}</button>
                 {r.analisada_em && <button onClick={prepararEmail}>✉️ Mandar resumo aos participantes</button>}
               </div>
-              <div className="meta">{dt(r.data)}{r.participantes?.length ? " · " + r.participantes.join(", ") : ""}</div>
+              <div className="meta">{r.setor && r.setor !== "SOCIOS" ? `${SETOR_NOME[r.setor] || r.setor} · gravada por ${r.autor_nome} · ` : ""}{dt(r.data)}{r.participantes?.length ? " · " + r.participantes.join(", ") : ""}</div>
               {r.ia_erro && <div className="aviso erro small" style={{ marginTop: 8 }}>{r.ia_erro}</div>}
               {r.resumo && <><h2>Resumo</h2><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{r.resumo}</p></>}
               {!!r.decisoes?.length && <><h2>Decisões</h2><ul style={{ margin: 0 }}>{r.decisoes.map((d, i) => <li key={i}>{d}</li>)}</ul></>}
@@ -134,6 +144,11 @@ export default function ReunioesApp() {
                   })() }} />
               </>)}
 
+              {r.setor && r.setor !== "SOCIOS" ? <>
+                <h2>Tarefas combinadas</h2>
+                {!r.tarefas_equipe?.length && <p className="muted small">Nenhuma.</p>}
+                {(r.tarefas_equipe || []).map((t, i) => <div key={i} className="tarefa-mini"><b>{t.quem}:</b> {t.titulo}{t.prazo ? <span className="muted small"> · até {dt(t.prazo)}</span> : null}</div>)}
+              </> : <>
               <h2>Tarefas</h2>
               {!minhas.length && <p className="muted small">Nenhuma.</p>}
               {minhas.map(t => (
@@ -149,6 +164,7 @@ export default function ReunioesApp() {
                   </div> : <span className="small muted">{t.status}</span>}
                 </div>
               ))}
+              </>}
             </div>
           )}
         </div>

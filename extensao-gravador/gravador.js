@@ -5,19 +5,13 @@ const titulo = p.get("titulo") || "Reunião";
 $("titulo").textContent = titulo;
 document.title = "🔴 " + titulo;
 
-let cfg, reuniaoId, segundosPedaco = 55, recorder, mix, ctx, streams = [], n = 0, inicio, parando = false;
+let reuniaoId, segundosPedaco = 55, recorder, mix, ctx, streams = [], n = 0, inicio, parando = false;
 const fila = []; let enviando = false, enviados = 0, falhas = 0;
 const status = (t) => ($("status").textContent = t);
 
-async function api(caminho, opts = {}) {
-  const r = await fetch(cfg.url + caminho, { ...opts, headers: { "x-mesa-chave": cfg.chave, ...(opts.headers || {}) } });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`);
-  return j;
-}
+const api = (caminho, opts = {}) => mesa(caminho, opts, false);
 
 async function comecar() {
-  cfg = await chrome.storage.local.get(["url", "chave"]);
   // 1) som da aba
   const aba = await navigator.mediaDevices.getUserMedia({ audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: p.get("stream") } }, video: false });
   streams.push(aba);
@@ -34,8 +28,9 @@ async function comecar() {
   } catch { status("Sem microfone — gravando só o som da reunião."); }
   mix = destino.stream;
   // 3) cria a reunião na Mesa
-  const r = await api("/api/gravacao/iniciar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ titulo }) });
+  const r = await api("/api/ext/iniciar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ titulo, setor: p.get("setor") }) });
   reuniaoId = r.id; segundosPedaco = r.segundosPedaco || 55;
+  document.getElementById("titulo").textContent = `${titulo} · ${r.setor?.nome || ""}`;
   await chrome.storage.local.set({ gravando: { titulo, id: reuniaoId } });
   inicio = Date.now();
   setInterval(() => { const s = Math.floor((Date.now() - inicio) / 1000); $("tempo").textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; }, 1000);
@@ -62,7 +57,7 @@ async function enviarFila() {
     const item = fila[0];
     let ok = false;
     for (let t = 0; t < 3 && !ok; t++) {
-      try { await api(`/api/gravacao/pedaco?id=${reuniaoId}&n=${item.n}`, { method: "POST", headers: { "Content-Type": "audio/webm" }, body: item.blob }); ok = true; }
+      try { await api(`/api/ext/pedaco?id=${reuniaoId}&n=${item.n}`, { method: "POST", headers: { "Content-Type": "audio/webm" }, body: item.blob }); ok = true; }
       catch (e) { await new Promise((r) => setTimeout(r, 3000)); if (t === 2) { falhas++; } }
     }
     if (ok) enviados++;
@@ -84,10 +79,8 @@ async function parar() {
   while (fila.length || enviando) { await enviarFila(); await new Promise((r) => setTimeout(r, 500)); }
   status("🤖 A IA está lendo a reunião…");
   try {
-    const r = await api("/api/gravacao/finalizar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: reuniaoId, titulo }) });
-    status(`Pronto! ${r.criadas} tarefa(s) criada(s).`);
-    $("fim").innerHTML = `<button id="abrir">Abrir na Mesa</button>`;
-    $("abrir").onclick = () => chrome.tabs.create({ url: cfg.url + r.url });
+    const r = await api("/api/ext/finalizar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: reuniaoId, titulo }) });
+    status(`Pronto! Resumo e ${r.criadas} tarefa(s) já estão no painel do setor.`);
   } catch (e) { status("Erro: " + e.message); }
   await chrome.storage.local.remove("gravando");
 }

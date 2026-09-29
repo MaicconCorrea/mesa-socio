@@ -1,10 +1,29 @@
 {
   "manifest_version": 3,
-  "name": "Mesa do Sócio — Gravador de reuniões",
-  "version": "1.0",
-  "description": "Grava o som da aba da reunião (Meet, Zoom, Teams) + seu microfone e manda para a Mesa do Sócio transcrever e resumir.",
-  "permissions": ["tabCapture", "storage", "activeTab"],
-  "host_permissions": ["https://mesa-socio.vercel.app/*"],
-  "action": { "default_popup": "popup.html", "default_icon": { "16": "icone-16.png", "48": "icone-48.png", "128": "icone-128.png" } },
-  "icons": { "16": "icone-16.png", "48": "icone-48.png", "128": "icone-128.png" }
+  "name": "Outtax — Gravador de reuniões",
+  "version": "2.0",
+  "description": "Grava o som da aba da reunião (Meet, Zoom, Teams) + seu microfone. A reunião aparece transcrita e resumida no painel do seu setor.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4eNXEeDiV1Qx1FIZwnxedchIITDcbZwOSxGqOSJNKLR7sHA/6Ac1Mq5+9tPYwLE626GAl9Wsxi4/r6JVMghY5yxlvjMs36dT77EGc+Rt+2mHur1Q1cu0cG+/j6KddAIpH+EPb66YyqVYgeymJP6QJyZACWmET+282FCBo95imT8M+6PjPa5yNcTqYrWVyVyZVKW93R8msRO3fowetYH5a7B5XXJNh2e897ThG/jffY5SHQOeHjx3ojF5GJcbpAk3LoeSnwCH4HyU7Sg078iV3sDVG9C+GC2BzdlsAl/xgGN9BucdOQPbcmqym/cbzzFCIXwHSYyW8IIo/Gvwg6N9KQIDAQAB",
+  "permissions": [
+    "tabCapture",
+    "storage",
+    "activeTab",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://mesa-socio.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icone-16.png",
+      "48": "icone-48.png",
+      "128": "icone-128.png"
+    }
+  },
+  "icons": {
+    "16": "icone-16.png",
+    "48": "icone-48.png",
+    "128": "icone-128.png"
+  }
 }

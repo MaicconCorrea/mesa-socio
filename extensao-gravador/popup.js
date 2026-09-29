@@ -1,34 +1,39 @@
 const $ = (id) => document.getElementById(id);
-const mostrar = (id) => ["config", "pronto", "gravando"].forEach((x) => ($(x).hidden = x !== id));
+const mostrar = (id) => ["entrar", "pronto", "gravando"].forEach((x) => ($(x).hidden = x !== id));
 const msg = (t, erro) => ($("msg").innerHTML = t ? `<div class="aviso ${erro ? "erro" : ""}">${t}</div>` : "");
 
 async function iniciar() {
-  const { url, chave, gravando } = await chrome.storage.local.get(["url", "chave", "gravando"]);
-  if (!chave) { mostrar("config"); if (url) $("url").value = url; return; }
+  const { gravando, setorPadrao } = await chrome.storage.local.get(["gravando", "setorPadrao"]);
   if (gravando) { mostrar("gravando"); $("tituloG").textContent = gravando.titulo; return; }
+  let eu;
+  try { eu = await mesa("/api/ext/eu"); } catch (e) { mostrar("entrar"); if (!/HTTP 401|Login|conta Google/.test(e.message)) msg(e.message, true); return; }
+  await chrome.storage.local.set({ email: eu.email });
+  $("ola").textContent = `Olá, ${eu.nome.split(" ")[0]}!`;
+  if (!eu.setores.length) { mostrar("pronto"); $("gravar").disabled = true; return msg("Você ainda não está no grupo do seu setor no Google. Fale com o Maiccon.", true); }
+  $("setor").innerHTML = eu.setores.map((s) => `<option value="${s.codigo}">${s.nome}</option>`).join("");
+  if (setorPadrao && eu.setores.some((s) => s.codigo === setorPadrao)) $("setor").value = setorPadrao;
+  $("caixaSetor").hidden = eu.setores.length < 2;
   const [aba] = await chrome.tabs.query({ active: true, currentWindow: true });
   $("titulo").value = (aba?.title || "Reunião").replace(/^Meet\s*[-–]\s*/i, "").replace(/\s*[-–|]\s*(Google Meet|Zoom|Microsoft Teams).*$/i, "").slice(0, 120);
   mostrar("pronto");
 }
 
-$("salvar").onclick = async () => {
-  const url = $("url").value.trim().replace(/\/+$/, ""), chave = $("chave").value.trim();
-  if (!chave.startsWith("mesa_")) return msg("A chave começa com mesa_ — copie de novo na Configuração da Mesa.", true);
-  await chrome.storage.local.set({ url, chave });
-  msg("Salvo ✓"); iniciar();
+$("login").onclick = async () => {
+  msg("");
+  try { await pegarToken(true); iniciar(); } catch (e) { msg("Não entrou: " + e.message, true); }
 };
-$("trocar").onclick = async () => { await chrome.storage.local.remove("chave"); iniciar(); };
 
 $("gravar").onclick = async () => {
   msg("");
   try {
     const [aba] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!aba || /^chrome/.test(aba.url || "")) return msg("Abra a aba da reunião (Meet, Zoom, Teams) e clique de novo.", true);
-    // precisa ser chamado aqui (clique do usuário)
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: aba.id });
     const titulo = $("titulo").value.trim() || "Reunião";
-    const q = new URLSearchParams({ stream: streamId, titulo, tab: String(aba.id) });
-    await chrome.windows.create({ url: `gravador.html?${q}`, type: "popup", width: 380, height: 330, focused: true });
+    const setor = $("setor").value;
+    await chrome.storage.local.set({ setorPadrao: setor });
+    const q = new URLSearchParams({ stream: streamId, titulo, setor });
+    await chrome.windows.create({ url: `gravador.html?${q}`, type: "popup", width: 380, height: 340, focused: true });
     window.close();
   } catch (e) { msg("Não consegui gravar esta aba: " + (e.message || e), true); }
 };

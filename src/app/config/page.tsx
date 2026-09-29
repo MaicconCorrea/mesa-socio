@@ -6,6 +6,7 @@ import { ligarWebhook } from "../actions";
 import Avisos from "@/components/Avisos";
 import EstiloIA from "@/components/EstiloIA";
 import GravadorConfig from "@/components/GravadorConfig";
+import EquipeConfig from "@/components/EquipeConfig";
 import { lerConfig } from "@/lib/config";
 import { motorTranscricao } from "@/lib/transcrever";
 import { pushConfigurado } from "@/lib/push";
@@ -67,6 +68,9 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
         <h2>🎙️ Gravador de reuniões (extensão do Chrome)</h2>
         <GravadorConfig temChave={!!((await lerConfig()) as any).chave_gravador} motor={motorTranscricao()} />
 
+        <h2>👥 Reuniões da equipe (extensão para todos os setores)</h2>
+        <EquipeConfig extId={process.env.EXT_ID || "eleibeagodmdpokamdpdfneclodahbfp"} clientOk={!!process.env.EXT_OAUTH_CLIENT_ID} comChave={Object.keys(((await lerConfig()) as any).chaves_painel || {})} />
+
         <h2>🔔 Avisos e resumo do dia</h2>
         {!pushConfigurado() ? <div className="aviso">Faltam <b>VAPID_PUBLIC_KEY</b> e <b>VAPID_PRIVATE_KEY</b> na Vercel — copie as duas do projeto do Painel DP.</div> : <Avisos />}
 
@@ -85,7 +89,7 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
         {g && Object.values(g).some(v => v !== "ok") ? (
           <div className="card small" style={{ marginTop: 8 }}>
             <b>Como liberar:</b> admin.google.com → Segurança → Acesso e controle de dados → Controles de API → <b>Delegação em todo o domínio</b> → editar o ID do cliente <code>{clientIdContaServico()}</code> e ACRESCENTAR (sem apagar os que já existem) os escopos que faltam — a lista final precisa conter:
-            <pre style={{ whiteSpace: "pre-wrap", background: "var(--paper)", padding: 8, borderRadius: 6 }}>{[ESCOPOS.gmail, ESCOPOS.agenda, ESCOPOS.drive, ESCOPOS.chatEspacos, ESCOPOS.chatMensagens, ESCOPOS.chatMembros, ESCOPOS.diretorio, ESCOPOS.usuarios].join(",")}</pre>
+            <pre style={{ whiteSpace: "pre-wrap", background: "var(--paper)", padding: 8, borderRadius: 6 }}>{[ESCOPOS.gmail, ESCOPOS.agenda, ESCOPOS.drive, ESCOPOS.chatEspacos, ESCOPOS.chatMensagens, ESCOPOS.chatMembros, ESCOPOS.diretorio, ESCOPOS.usuarios, ESCOPOS.grupos].join(",")}</pre>
             Se aparecer "Calendar API não está ativa": console.cloud.google.com → projeto da conta de serviço → APIs e serviços → ativar <b>Google Calendar API</b>, <b>Google Drive API</b>, <b>Google Chat API</b> e <b>People API</b>. No Google Chat API, abra a aba <b>Configuração</b> e preencha nome do app "Mesa do Sócio", avatar <code>https://mesa-socio.vercel.app/icone-192.png</code> e uma descrição (é exigência do Google, mesmo sem usar bot).
           </div>
         ) : null}

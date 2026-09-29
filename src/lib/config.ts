@@ -16,7 +16,8 @@ export const PADRAO = {
   estilo_escrita: "",        // "meu jeito de escrever" (a IA imita nas sugestões)
   sugestao_auto: true,       // IA deixa uma resposta sugerida pronta em cada conversa
   chat_meu_id: "",           // meu users/… no Google Chat (descoberto sozinho)
-  chave_gravador: "",        // chave da extensão do Chrome que grava reuniões
+  chave_gravador: "",        // chave da extensão do Chrome que grava reuniões (modo antigo, só o Maiccon)
+  chaves_painel: {} as Record<string, string>, // chave de cada painel de setor para ler as reuniões do setor
 };
 export type Config = typeof PADRAO;
 

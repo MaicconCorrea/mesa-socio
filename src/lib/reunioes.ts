@@ -18,6 +18,13 @@ Prazos relativos ("semana que vem", "sexta") calculados a partir da DATA DA REUN
 Responda SOMENTE JSON, sem crases:
 {"titulo":"","resumo":"","decisoes":[],"participantes":[],"minhas":[],"de_outros":[]}`;
 
+const SISTEMA_EQUIPE = `Você é assistente do escritório de contabilidade Outtax (RJ). Recebe a transcrição de uma reunião de um setor
+(a transcrição automática pode errar nomes: "acessórios" costuma ser o sistema "Acessórias", "domínio" o sistema "Domínio"). Produza:
+- "titulo": nome curto (cliente/assunto). - "resumo": 3 a 6 frases. - "decisoes": lista curta. - "participantes": nomes.
+- "tarefas": tudo o que alguém ficou de fazer: {"quem":"nome da pessoa ou Outtax/cliente","titulo":"verbo no infinitivo + o quê","prazo":ISO-8601 com -03:00 ou null}.
+Prazos relativos a partir da DATA DA REUNIÃO. Responda SOMENTE JSON, sem crases:
+{"titulo":"","resumo":"","decisoes":[],"participantes":[],"tarefas":[]}`;
+
 export async function analisarReuniao(id: string) {
   const sb = db();
   const { data: r } = await sb.from("reunioes").select("*").eq("id", id).single();
@@ -26,8 +33,18 @@ export async function analisarReuniao(id: string) {
   if (!texto && r.doc_id) { texto = await textoDoDoc(r.doc_id); await sb.from("reunioes").update({ texto: texto.slice(0, 200000) }).eq("id", id); }
   if (!texto || texto.length < 40) throw new Error("Documento vazio ou curto demais.");
 
-  const conteudo = `Agora: ${agoraTexto()}\nData da reunião: ${r.data ? dataHora(r.data) : "desconhecida"}\nNome do documento: ${r.titulo}\n\n${texto.slice(0, 60000)}`;
-  const { obj, uso } = await chamarClaude(SISTEMA, conteudo, MODELO(), 3000);
+  const conteudo = `Agora: ${agoraTexto()}\nData da reunião: ${r.data ? dataHora(r.data) : "desconhecida"}\nNome do documento: ${r.titulo}${r.autor_nome ? `\nQuem gravou: ${r.autor_nome}` : ""}\n\n${texto.slice(0, 60000)}`;
+  const equipe = !!r.setor && r.setor !== "SOCIOS";
+  const { obj, uso } = await chamarClaude(equipe ? SISTEMA_EQUIPE : SISTEMA, conteudo, MODELO(), 3000);
+  if (equipe) {
+    // reunião de setor: as tarefas ficam na reunião (o painel do setor mostra) — não entram nas tarefas do Maiccon
+    await sb.from("ia_uso").insert({ conversa_id: null, tokens_in: uso.input_tokens || 0, tokens_out: uso.output_tokens || 0 });
+    await sb.from("reunioes").update({
+      titulo: obj.titulo || r.titulo, resumo: obj.resumo || null, decisoes: obj.decisoes || [], participantes: obj.participantes || [],
+      tarefas_equipe: obj.tarefas || [], analisada_em: new Date().toISOString(), ia_erro: null,
+    }).eq("id", id);
+    return { criadas: (obj.tarefas || []).length, titulo: obj.titulo || r.titulo };
+  }
   await sb.from("ia_uso").insert({ conversa_id: null, tokens_in: uso.input_tokens || 0, tokens_out: uso.output_tokens || 0 });
 
   let criadas = 0;

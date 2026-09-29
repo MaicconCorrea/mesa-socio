@@ -12,6 +12,7 @@ export async function POST() {
   if (!(await logado())) return naoAutorizado();
   const sb = db();
   const resultado: Record<string, number> = {};
+  const encontradas: Record<string, number> = {};
   const limite = Date.now() - 90 * 86400 * 1000;
   try {
     for (const inst of instancias()) {
@@ -38,7 +39,8 @@ export async function POST() {
         await sb.from("conversas").upsert(novas.slice(i, i + 200), { onConflict: "instancia,jid", ignoreDuplicates: true });
       }
       resultado[inst] = novas.length;
+      encontradas[inst] = chats.length;
     }
-    return NextResponse.json({ ok: true, novas: resultado });
+    return NextResponse.json({ ok: true, novas: resultado, encontradas });
   } catch (e) { return erro(e); }
 }

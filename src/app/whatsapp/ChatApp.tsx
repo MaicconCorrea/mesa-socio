@@ -72,7 +72,6 @@ export default function ChatApp() {
   const gravador = useRef<MediaRecorder | null>(null);
   const pedacos = useRef<Blob[]>([]);
   const cancelarGravacao = useRef(false);
-  const [lerNoCelular, setLerNoCelular] = useState(true);
   const [avisos, setAvisos] = useState(false);
   const [modalNova, setModalNova] = useState(false);
   const [nova, setNova] = useState({ instancia: "", numero: "", nome: "", texto: "" });
@@ -80,10 +79,28 @@ export default function ChatApp() {
   const anteriores = useRef<Map<string, number> | null>(null);
   const historicoPedido = useRef<Set<string>>(new Set());
   const [carregandoAntigas, setCarregandoAntigas] = useState(false);
+  const [visor, setVisor] = useState<Msg | null>(null); // foto/PDF aberto por cima
 
+  const midiasVisor = useMemo(() => (msgs || []).filter(m => m.tem_midia && (m.tipo === "imagem" || (m.midia_mime || "").includes("pdf"))), [msgs]);
+  const moverVisor = useCallback((d: number) => {
+    setVisor(v => {
+      if (!v) return v;
+      const i = midiasVisor.findIndex(m => m.id === v.id);
+      const n = midiasVisor[i + d];
+      return n || v;
+    });
+  }, [midiasVisor]);
+  useEffect(() => {
+    if (!visor) return;
+    const f = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setVisor(null);
+      if (e.key === "ArrowLeft") moverVisor(-1);
+      if (e.key === "ArrowRight") moverVisor(1);
+    };
+    window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f);
+  }, [visor, moverVisor]);
   useEffect(() => {
     try {
-      setLerNoCelular(localStorage.getItem("ler-no-celular") !== "0");
       setAvisos(localStorage.getItem("avisos-whats") === "1" && "Notification" in window && Notification.permission === "granted");
     } catch {}
   }, []);
@@ -139,7 +156,6 @@ export default function ChatApp() {
 
   // ---- conversa ativa (atualiza a cada 3s) ----
   const irProFim = () => { const el = msgsRef.current; if (el) el.scrollTop = el.scrollHeight; setNovasAbaixo(0); };
-  const lerNoCelularRef = useRef(true); lerNoCelularRef.current = lerNoCelular;
   const carregarConversa = useCallback(async (id: string, primeira = false) => {
     const j = await fetch(`/api/chat/conversa?id=${id}`, { cache: "no-store" }).then(r => r.json()).catch(() => null);
     if (!j || j.erro) return;
@@ -152,7 +168,7 @@ export default function ChatApp() {
       ultimaQtd.current = qtd;
     }
     if (j.conversa?.nao_lidas > 0) {
-      fetch("/api/chat/lida", { method: "POST", body: JSON.stringify({ id, noCelular: lerNoCelularRef.current }) });
+      fetch("/api/chat/lida", { method: "POST", body: JSON.stringify({ id }) });
       setLista(l => l.map(c => c.id === id ? { ...c, nao_lidas: 0 } : c));
     }
   }, []);
@@ -293,15 +309,16 @@ export default function ChatApp() {
     if (p === "granted") { setAvisos(true); bip(); try { localStorage.setItem("avisos-whats", "1"); } catch {} }
     else setAviso("Notificações bloqueadas — libere nas configurações do navegador para este site.");
   }
-  function alternarLerNoCelular() {
-    setLerNoCelular(v => { try { localStorage.setItem("ler-no-celular", v ? "0" : "1"); } catch {} return !v; });
-  }
   async function sincronizar() {
     setSincronizando("Buscando conversas no celular…");
     const j = await fetch("/api/chat/sincronizar", { method: "POST" }).then(r => r.json()).catch(e => ({ erro: String(e) }));
     if (j.erro) setSincronizando("Erro: " + j.erro);
-    else { const tot = Object.values(j.novas || {}).reduce((a: number, b: any) => a + Number(b), 0); setSincronizando(`${tot} conversa(s) trazidas do celular.`); carregarLista(); }
-    setTimeout(() => setSincronizando(""), 6000);
+    else {
+      const tot = Object.values(j.novas || {}).reduce((a: number, b: any) => a + Number(b), 0);
+      const det = Object.entries(j.encontradas || {}).map(([k, v]) => `📱 ${k.replace(/^socio-/, "")}: ${v} no celular`).join(" · ");
+      setSincronizando(`${tot} conversa(s) nova(s) trazidas. ${det}`); carregarLista();
+    }
+    setTimeout(() => setSincronizando(""), 12000);
   }
   async function criarNova() {
     setAviso("");
@@ -331,7 +348,6 @@ export default function ChatApp() {
           <button onClick={() => { setNova(n => ({ ...n, instancia: n.instancia || conexoes[0] || "" })); setModalNova(true); }}>+ Nova conversa</button>
           <button className="sec" onClick={sincronizar} title="Traz pro painel as conversas dos últimos 90 dias do celular">🔄 Sincronizar conversas</button>
           <button className="sec" onClick={alternarAvisos} title="Som e notificação quando chegar mensagem">{avisos ? "🔔 Avisos ligados" : "🔕 Ligar avisos"}</button>
-          <button className="sec" onClick={alternarLerNoCelular} title="Ao abrir a conversa no painel, marca como lida no celular (dois tracinhos azuis pro contato)">{lerNoCelular ? "✓✓ Marca lida no celular" : "✓ Não marca lida"}</button>
         </div>
       </div>
       {sincronizando && <div className="aviso" style={{ marginTop: 8 }}>{sincronizando}</div>}
@@ -424,10 +440,12 @@ export default function ChatApp() {
                       {m.me_citou && <span className="citou">📣 falou com você</span>}
                       {m.citada_texto && <div style={{ borderLeft: "3px solid var(--laranja)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--paper)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9 }}>{m.citada_texto.slice(0, 160)}</div>}
                       {m.tem_midia && (
-                        m.tipo === "imagem" ? <a href={link} target="_blank"><img className="midia" src={link} alt="imagem" loading="lazy" onLoad={() => { if (grudado.current) irProFim(); }} /></a>
+                        m.tipo === "imagem" ? <img className="midia" src={link} alt="imagem" loading="lazy" onClick={() => setVisor(m)} onLoad={() => { if (grudado.current) irProFim(); }} />
                         : m.tipo === "audio" ? <audio controls preload="none" src={link} />
                         : m.tipo === "video" ? <video controls preload="none" src={link} style={{ maxWidth: 240 }} />
-                        : <a href={link} target="_blank" className="dg-doc">📄 {m.midia_nome || "documento"}</a>
+                        : (m.midia_mime || "").includes("pdf")
+                          ? <a href={link} className="dg-doc" onClick={e => { e.preventDefault(); setVisor(m); }}>📄 {m.midia_nome || "documento"}</a>
+                          : <a href={link} target="_blank" className="dg-doc">📄 {m.midia_nome || "documento"}</a>
                       )}
                       {m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
                       {txt ? <div style={{ whiteSpace: "pre-wrap" }}>{txt}</div> : null}
@@ -524,6 +542,28 @@ export default function ChatApp() {
           </div>
         )}
       </div>
+
+      {visor && (() => {
+        const link = `/api/chat/midia?id=${visor.id}`;
+        const i = midiasVisor.findIndex(m => m.id === visor.id);
+        const ehPdf = (visor.midia_mime || "").includes("pdf");
+        const legenda = semMarcador(visor.texto);
+        return <div className="visor-fundo" onClick={e => { if (e.target === e.currentTarget) setVisor(null); }}>
+          <div className="visor-topo">
+            <span>{visor.de_mim ? "Você" : (visor.autor || ativo?.nome)} · {hora(visor.enviada_em)}{midiasVisor.length > 1 ? ` · ${i + 1} de ${midiasVisor.length}` : ""}</span>
+            <div style={{ flex: 1 }} />
+            <a className="visor-btn" href={`${link}&baixar=1`}>⬇ Baixar</a>
+            <button className="visor-btn" onClick={() => { setCitada(visor); setVisor(null); }}>↩ Responder</button>
+            <button className="visor-btn" onClick={() => setVisor(null)}>✕</button>
+          </div>
+          {i > 0 && <button className="visor-seta esq" onClick={() => moverVisor(-1)}>‹</button>}
+          {ehPdf
+            ? <iframe src={link} className="visor-pdf" title={visor.midia_nome || "PDF"} />
+            : <img src={link} alt="" className="visor-img" onClick={e => e.stopPropagation()} />}
+          {i < midiasVisor.length - 1 && <button className="visor-seta dir" onClick={() => moverVisor(1)}>›</button>}
+          {legenda && <div className="visor-legenda">{legenda}</div>}
+        </div>;
+      })()}
 
       {modalNova && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setModalNova(false); }}>
         <div className="modal-caixa">

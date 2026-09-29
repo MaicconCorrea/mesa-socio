@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { enviarAudio } from "@/lib/evolution";
-import { registrarEnvio } from "@/lib/envio";
+import { marcarLidasAoResponder, registrarEnvio } from "@/lib/envio";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
 export const maxDuration = 60;
@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   const { data: c } = await sb.from("conversas").select("*").eq("id", id).single();
   if (!c) return NextResponse.json({ erro: "conversa não encontrada" }, { status: 404 });
   try {
+    await marcarLidasAoResponder(sb, c);
     const r = await enviarAudio(c.instancia, c.jid, base64);
     await registrarEnvio(sb, c, { msg_id: r.id, texto: "[áudio]", tipo: "audio", mime: "audio/ogg" });
     return NextResponse.json({ ok: true });

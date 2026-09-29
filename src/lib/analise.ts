@@ -276,7 +276,8 @@ export async function marcarConflito(tarefaId: string, prazoIso: string) {
 // ---------------- E-mail ----------------
 const MODO_EMAIL = `ORIGEM: E-MAIL (caixa do Maiccon). Capture pedidos feitos a ele, promessas que ele fez nas respostas dele e reuniões combinadas.
 Ignore assinaturas, avisos legais, rodapés e e-mails de sistema. Categoria "trabalho" salvo se for claramente pessoal.
-"precisa_resposta": true se a última mensagem é de outra pessoa e espera retorno dele.`;
+"precisa_resposta": true só se a última mensagem é de uma pessoa e espera retorno dele. false para: prospecção/propaganda, newsletter, convite de agenda, aviso automático, cópia informativa.
+ATENÇÃO A GOLPES: convite ou e-mail de remetente desconhecido com anexo/link estranho ("Attached from +1…", "Open media", "V-Messages", cobrança inesperada) — diga no resumo "⚠️ Parece golpe: não clique" e precisa_resposta = false.`;
 
 export async function analisarEmail(threadId: string) {
   const { lerThread, textoDaThread } = await import("./gmail");
@@ -313,7 +314,13 @@ export async function analisarEmail(threadId: string) {
       await avisarTarefa(String(x.titulo), tipo, prazo, `/email?thread=${threadId}`);
     }
   }
-  await sb.from("email_threads").update({ analisada_msg_id: ult?.id ?? null, resumo: obj.resumo ? String(obj.resumo).slice(0, 300) : null, ia_erro: null }).eq("thread_id", threadId);
+  // IA disse que não precisa responder (propaganda, aviso, convite): tira de "esperando você"
+  const ultimaMinha = (ult?.deEmail || "").toLowerCase() === (await import("./google")).minhaConta();
+  const dispensa = !ultimaMinha && obj.precisa_resposta === false ? (ult?.id ?? null) : null;
+  await sb.from("email_threads").update({
+    analisada_msg_id: ult?.id ?? null, resumo: obj.resumo ? String(obj.resumo).slice(0, 300) : null, ia_erro: null,
+    ...(dispensa ? { ia_dispensou: dispensa, esperando: false } : {}),
+  }).eq("thread_id", threadId);
   return { criadas };
 }
 

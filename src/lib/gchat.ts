@@ -22,17 +22,39 @@ async function api(escopo: string, caminho: string, init: RequestInit = {}) {
 }
 
 // ---- nomes das pessoas (users/123 → "Fulano") ----
-const nomes = new Map<string, { nome: string; email: string }>();
-async function pessoa(userName: string): Promise<{ nome: string; email: string }> {
+const nomes = new Map<string, { nome: string; email: string; achou: boolean }>();
+export async function pessoa(userName: string): Promise<{ nome: string; email: string; achou: boolean }> {
+  if (!userName) return { nome: "Contato", email: "", achou: false };
   if (nomes.has(userName)) return nomes.get(userName)!;
-  let out = { nome: userName.replace("users/", ""), email: "" };
-  try {
-    const id = userName.replace("users/", "");
+  const id = userName.replace("users/", "");
+  let out = { nome: "Contato externo", email: "", achou: false };
+  try { // 1) People API (diretório do domínio)
     const r = await fetch(`https://people.googleapis.com/v1/people/${id}?personFields=names,emailAddresses`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.diretorio)}` } });
-    if (r.ok) { const j = await r.json(); out = { nome: j.names?.[0]?.displayName || out.nome, email: (j.emailAddresses?.[0]?.value || "").toLowerCase() }; }
+    if (r.ok) { const j = await r.json(); if (j.names?.[0]?.displayName) out = { nome: j.names[0].displayName, email: (j.emailAddresses?.[0]?.value || "").toLowerCase(), achou: true }; }
+  } catch { /* tenta o próximo */ }
+  if (!out.achou) try { // 2) Admin SDK (usuários do Workspace)
+    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}?viewType=domain_public`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+    if (r.ok) { const j = await r.json(); if (j.name?.fullName) out = { nome: j.name.fullName, email: String(j.primaryEmail || "").toLowerCase(), achou: true }; }
   } catch { /* sem nome */ }
   nomes.set(userName, out);
   return out;
+}
+
+// Mensagens antigas gravadas só com o número (109725…): troca pelo nome
+async function corrigirNomes(sb: any) {
+  const { data } = await sb.from("mensagens").select("autor, conversas!inner(instancia)").eq("conversas.instancia", GCHAT).eq("de_mim", false).limit(2000);
+  const ids = Array.from(new Set((data || []).map((m: any) => m.autor).filter((a: string) => /^\d{10,}$/.test(a || ""))));
+  for (const id of ids.slice(0, 30)) {
+    const p = await pessoa(`users/${id}`);
+    if (p.achou) await sb.from("mensagens").update({ autor: p.nome }).eq("autor", id);
+  }
+  const { data: cs } = await sb.from("conversas").select("id,jid,nome,is_grupo").eq("instancia", GCHAT);
+  for (const c of cs || []) {
+    if (/^\d{10,}/.test(c.nome || "") || /Contato externo|^users\//.test(c.nome || "")) {
+      const nome = await nomeDoEspaco({ name: c.jid }, (await lerConfig() as any).chat_meu_id || null).catch(() => null);
+      if (nome && !/^\d{10,}/.test(nome)) await sb.from("conversas").update({ nome }).eq("id", c.id);
+    }
+  }
 }
 
 // Descobre o meu "users/…" (fica guardado na config)
@@ -72,16 +94,30 @@ export async function listarEspacos(): Promise<any[]> {
 
 async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: boolean) {
   const deMim = !!eu && m.sender?.name === eu;
-  const texto = String(m.text || m.formattedText || (m.attachment?.length ? `[anexo: ${m.attachment.map((a: any) => a.contentName).join(", ")}]` : "")).trim();
+  const anexo = (m.attachment || [])[0];
+  let midia: any = { tipo: "texto", tem_midia: false, midia_mime: null, midia_nome: null, midia_ref: null };
+  if (anexo) {
+    const mime = anexo.contentType || "application/octet-stream";
+    const tipo = mime.startsWith("image/") ? "imagem" : mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "documento";
+    const ref = anexo.attachmentDataRef?.resourceName ? `chat:${anexo.attachmentDataRef.resourceName}`
+      : anexo.driveDataRef?.driveFileId ? `drive:${anexo.driveDataRef.driveFileId}` : null;
+    midia = { tipo, tem_midia: !!ref, midia_mime: mime, midia_nome: anexo.contentName || "arquivo", midia_ref: ref };
+  }
+  const marcador = anexo ? (midia.tipo === "imagem" ? "[imagem]" : midia.tipo === "video" ? "[vídeo]" : midia.tipo === "audio" ? "[áudio]" : `[documento: ${midia.midia_nome}]`) : "";
+  const texto = [marcador, String(m.text || "").trim()].filter(Boolean).join(" ").trim();
   if (!texto) return false;
   const autor = deMim ? "Maiccon" : (await pessoa(m.sender?.name || "")).nome;
   const meCitou = !deMim && (MEU_NOME.test(texto) || (m.annotations || []).some((a: any) => a.type === "USER_MENTION" && a.userMention?.user?.name === eu));
   const quando = new Date(m.createTime);
   const { data: ins } = await sb.from("mensagens").upsert({
     conversa_id: conv.id, msg_id: m.name, de_mim: deMim, autor, texto: texto.slice(0, 4000), enviada_em: quando.toISOString(),
-    me_citou: meCitou, tipo: "texto", tem_midia: false, citada_texto: m.quotedMessageMetadata ? "[mensagem citada]" : null,
+    me_citou: meCitou, ...midia, citada_texto: m.quotedMessageMetadata ? "[mensagem citada]" : null,
   }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true }).select("id");
-  if (!ins?.length) return false;
+  if (!ins?.length) {
+    // já existia: completa anexo e nome (mensagens gravadas antes da v0.10)
+    if (anexo) await sb.from("mensagens").update({ ...midia, texto: texto.slice(0, 4000) }).eq("conversa_id", conv.id).eq("msg_id", m.name).is("midia_ref", null);
+    return false;
+  }
   const upd: any = {};
   if (!historico) {
     upd.nao_lidas = deMim ? 0 : (conv.nao_lidas || 0) + 1; conv.nao_lidas = upd.nao_lidas;
@@ -129,6 +165,7 @@ export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: 
     const primeiraVez = !porJid.has(e.name);
     for (const m of j?.messages || []) if (await gravar(sb, conv, m, eu, primeiraVez || !!opcoes.historico)) mensagens++;
   }
+  if (!opcoes.espaco) await corrigirNomes(sb).catch(() => {});
   return { espacos: espacos.length, novas, mensagens };
 }
 
@@ -136,4 +173,19 @@ export async function enviarChat(espaco: string, texto: string) {
   const j = await api(ESCOPOS.chatMensagens, `/${espaco}/messages`, { method: "POST", body: JSON.stringify({ text: texto }) });
   if (j.sender?.name) { const cfg: any = await lerConfig(); if (!cfg.chat_meu_id) await gravarConfig({ chat_meu_id: j.sender.name } as any); }
   return { id: j.name as string };
+}
+
+// Baixa o anexo de uma mensagem do Chat
+export async function baixarAnexoChat(ref: string): Promise<{ bytes: Buffer; mime: string } | null> {
+  if (ref.startsWith("chat:")) {
+    const r = await fetch(`${API}/media/${ref.slice(5)}?alt=media`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.chatMensagens)}` } });
+    if (!r.ok) return null;
+    return { bytes: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "application/octet-stream" };
+  }
+  if (ref.startsWith("drive:")) {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${ref.slice(6)}?alt=media&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.drive)}` } });
+    if (!r.ok) return null;
+    return { bytes: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "application/octet-stream" };
+  }
+  return null;
 }

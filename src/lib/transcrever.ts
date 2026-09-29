@@ -20,11 +20,12 @@ async function viaOpenAI(bytes: Buffer, mime: string) {
   return String(j.text || "").trim();
 }
 
-async function viaGoogle(bytes: Buffer) {
+async function viaGoogle(bytes: Buffer, mime = "audio/ogg") {
   const token = await tokenServico();
+  const webm = mime.includes("webm");
   const r = await fetch("https://speech.googleapis.com/v1/speech:recognize", {
     method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ config: { encoding: "OGG_OPUS", sampleRateHertz: 16000, languageCode: "pt-BR", enableAutomaticPunctuation: true, model: "latest_long" },
+    body: JSON.stringify({ config: { encoding: webm ? "WEBM_OPUS" : "OGG_OPUS", sampleRateHertz: webm ? 48000 : 16000, languageCode: "pt-BR", enableAutomaticPunctuation: true, model: "latest_long" },
       audio: { content: bytes.toString("base64") } }),
   });
   const j = await r.json().catch(() => ({}));
@@ -35,6 +36,11 @@ async function viaGoogle(bytes: Buffer) {
     throw new Error(`Google Speech ${r.status}: ${t.slice(0, 200)}`);
   }
   return (j.results || []).map((x: any) => x.alternatives?.[0]?.transcript || "").join(" ").trim();
+}
+
+// Transcreve um arquivo de áudio qualquer (usado pelo gravador de reuniões)
+export async function transcreverBytes(bytes: Buffer, mime: string): Promise<string> {
+  return process.env.OPENAI_API_KEY ? viaOpenAI(bytes, mime) : viaGoogle(bytes, mime);
 }
 
 export async function transcreverMensagem(mensagemId: string): Promise<string> {

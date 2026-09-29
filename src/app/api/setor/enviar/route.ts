@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { criarSolicitacao } from "@/lib/acessorias";
 import { baixarMidia } from "@/lib/evolution";
+import { baixarAnexoChat } from "@/lib/gchat";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
 export const maxDuration = 120;
@@ -16,10 +17,10 @@ export async function POST(req: NextRequest) {
     const arquivos: { nome: string; bytes: Buffer; mime?: string }[] = [];
     for (const a of b.arquivos || []) arquivos.push({ nome: a.nome, mime: a.mime, bytes: Buffer.from(a.base64, "base64") });
     for (const mid of b.midias || []) {
-      const { data: m } = await sb.from("mensagens").select("msg_id,midia_nome,midia_mime,tipo,conversa_id").eq("id", mid).single();
+      const { data: m } = await sb.from("mensagens").select("msg_id,midia_nome,midia_mime,midia_ref,tipo,conversa_id").eq("id", mid).single();
       if (!m) continue;
       const { data: c } = await sb.from("conversas").select("instancia").eq("id", m.conversa_id).single();
-      const arq = await baixarMidia(c?.instancia || "", m.msg_id);
+      const arq: any = m.midia_ref ? await baixarAnexoChat(m.midia_ref).then(x => x ? { ...x, nome: m.midia_nome } : null) : await baixarMidia(c?.instancia || "", m.msg_id);
       if (arq) arquivos.push({ nome: m.midia_nome || arq.nome || `${m.tipo || "arquivo"}-${m.msg_id.slice(-6)}.${(m.midia_mime || arq.mime).split("/")[1]?.split(";")[0] || "bin"}`, mime: m.midia_mime || arq.mime, bytes: arq.bytes });
     }
     if (b.anexosEmail?.length) {

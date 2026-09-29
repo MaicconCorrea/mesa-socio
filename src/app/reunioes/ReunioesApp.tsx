@@ -75,7 +75,7 @@ export default function ReunioesApp() {
           <button className="sec" onClick={() => setColar({ titulo: "", data: hoje(), texto: "" })}>📋 Colar anotações</button>
         </div>
       </div>
-      <p className="muted small">A cada 10 min a Mesa procura no seu Drive as <b>anotações do Gemini</b> e as <b>transcrições</b> do Meet. Reunião fora do Meet: use "Colar anotações".</p>
+      <p className="muted small">A cada 10 min a Mesa procura no seu Drive as <b>anotações do Gemini</b> e as <b>transcrições</b> do Meet. Pra gravar qualquer reunião (Meet, Zoom, Teams) use a <b>extensão do Chrome</b> (Configuração → Gravador). Ou "Colar anotações".</p>
       {ocupado && <div className="aviso">{ocupado}</div>}
       {aviso && <div className="aviso" style={{ marginTop: 6 }}>{aviso}</div>}
 
@@ -85,7 +85,7 @@ export default function ReunioesApp() {
           {lista.map(x => (
             <div key={x.id} className="card" onClick={() => setSel(x.id)} style={{ cursor: "pointer", borderLeft: x.id === sel ? "4px solid var(--laranja)" : undefined, padding: "8px 12px" }}>
               <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 13.5 }}>{x.titulo}</div>
-              <div className="meta">{dt(x.data)} · {x.origem === "colado" ? "📋 colado" : "🎥 Meet"} · {x.analisada_em ? `${tarefas.filter(t => t.reuniao_id === x.id).length} tarefa(s)` : x.ia_erro ? "⚠️ erro" : "⏳ a analisar"}</div>
+              <div className="meta">{dt(x.data)} · {x.origem === "colado" ? "📋 colado" : x.origem === "gravada" ? "🔴 gravada" : "🎥 Meet"} · {x.analisada_em ? `${tarefas.filter(t => t.reuniao_id === x.id).length} tarefa(s)` : x.ia_erro ? "⚠️ erro" : "⏳ a analisar"}</div>
             </div>
           ))}
         </div>

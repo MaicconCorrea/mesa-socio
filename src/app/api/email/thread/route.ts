@@ -17,6 +17,6 @@ export async function GET(req: NextRequest) {
     const sb = db();
     const { data: controle } = await sb.from("email_threads").select("*").eq("thread_id", id).maybeSingle();
     const { data: tarefas } = await sb.from("tarefas").select("*").eq("email_thread_id", id).eq("status", "aberta");
-    return NextResponse.json({ ...t, controle, tarefas: tarefas || [] });
+    return NextResponse.json({ ...t, controle, tarefas: tarefas || [], conta: minhaConta() });
   } catch (e: any) { return NextResponse.json({ erro: String(e.message ?? e) }, { status: 500 }); }
 }

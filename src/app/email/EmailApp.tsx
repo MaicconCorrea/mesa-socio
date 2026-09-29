@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MandarSetor from "@/components/MandarSetor";
 import BolhaIA from "@/components/BolhaIA";
+import CorpoEmail from "@/components/CorpoEmail";
 
 type Th = { id: string; assunto: string; de: string; deEmail: string; quando: string; snippet: string; naoLido: boolean; temAnexo: boolean; mensagens: number; ultimaMinha: boolean; automatico: boolean;
   controle: { status: string; resumo: string | null; esperando: boolean } | null };
@@ -15,15 +16,6 @@ const kb = (n: number) => n > 1048576 ? `${(n / 1048576).toFixed(1).replace(".",
 const linkAnexo = (a: Anexo, baixar = false) => `/api/email/anexo?msg=${a.msgId}&att=${encodeURIComponent(a.attId)}&nome=${encodeURIComponent(a.nome)}&mime=${encodeURIComponent(a.mime)}${baixar ? "&baixar=1" : ""}`;
 const MAX = 3 * 1024 * 1024;
 function lerBase64(f: Blob): Promise<string> { return new Promise((ok, falha) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = () => falha(r.error); r.readAsDataURL(f); }); }
-
-function CorpoEmail({ m }: { m: Msg }) {
-  const ref = useRef<HTMLIFrameElement | null>(null);
-  const [altura, setAltura] = useState(120);
-  if (!m.html) return <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5 }}>{m.texto || "(sem conteúdo)"}</div>;
-  const doc = `<!doctype html><html><head><base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:13.5px;color:#222;margin:0;word-wrap:break-word}img{max-width:100%;height:auto}blockquote{border-left:3px solid #ddd;margin:6px 0;padding-left:8px;color:#666}</style></head><body>${m.html}</body></html>`;
-  return <iframe ref={ref} sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin" srcDoc={doc} style={{ width: "100%", border: 0, height: altura }}
-    onLoad={() => { try { const h = ref.current?.contentDocument?.body?.scrollHeight; if (h) setAltura(Math.min(h + 20, 4000)); } catch {} }} />;
-}
 
 export default function EmailApp() {
   const [ativo, setAtivo] = useState<boolean | null>(null);

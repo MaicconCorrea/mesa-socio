@@ -43,7 +43,7 @@ export async function resumoThread(conta: string, id: string): Promise<ResumoThr
     naoLido: msgs.some(m => (m.labelIds ?? []).includes("UNREAD")), temAnexo: msgs.some(m => JSON.stringify(m.payload ?? {}).includes('"attachmentId"')),
     mensagens: msgs.length, ultimaDeFora: deFora ? new Date(Number(deFora.internalDate)).toISOString() : null,
     ultimaMinha: emailDe(cabecalho(ult?.payload?.headers, "From")) === conta.toLowerCase(),
-    automatico: ehAutomatico(from, (deFora ?? ult)?.payload?.headers ?? []),
+    automatico: ehAutomatico(from, (deFora ?? ult)?.payload?.headers ?? []) || /^(convite|invitation|convite atualizado|updated invitation|aceito|accepted|recusado|declined|talvez|tentatively|evento cancelado|canceled event|lembrete)\b/i.test(cabecalho(prim?.payload?.headers, "Subject")),
     ultimaMsgId: ult?.id ?? "",
   };
 }

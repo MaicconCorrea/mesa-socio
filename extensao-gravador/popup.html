@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="estilo.css"></head>
+<body>
+  <h1>🎙️ Gravador · Mesa do Sócio</h1>
+  <div id="config" hidden>
+    <p class="muted">Primeira vez: cole a chave que aparece na Mesa em <b>Configuração → Gravador de reuniões</b>.</p>
+    <label>Endereço da Mesa</label><input id="url" value="https://mesa-socio.vercel.app">
+    <label>Chave da extensão</label><input id="chave" placeholder="mesa_...">
+    <button id="salvar">Salvar</button>
+  </div>
+  <div id="pronto" hidden>
+    <label>Nome da reunião</label><input id="titulo">
+    <button id="gravar" class="vermelho">🔴 Gravar esta aba</button>
+    <p class="muted">Grava o som desta aba + o seu microfone. Abre uma janelinha — deixe ela aberta (pode minimizar) até parar.</p>
+    <button id="trocar" class="sec">Trocar chave</button>
+  </div>
+  <div id="gravando" hidden>
+    <p>🔴 Gravando: <b id="tituloG"></b></p>
+    <button id="parar" class="vermelho">⏹ Parar e resumir</button>
+  </div>
+  <div id="msg"></div>
+  <script src="popup.js"></script>
+</body></html>

@@ -104,6 +104,9 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
     conv = nova;
   } else if (!isGrupo && !deMim && m.pushName && conv.nome === numeroDoJid(jid)) {
     await sb.from("conversas").update({ nome: m.pushName }).eq("id", conv.id);
+  } else if (isGrupo && /^\d{10,}/.test(conv.nome || "")) {
+    const n = await nomeDoGrupo(instancia, jid);
+    if (n) { await sb.from("conversas").update({ nome: n }).eq("id", conv.id); conv.nome = n; }
   }
   if (!conv || conv.modo === "ignorada") return false;
 

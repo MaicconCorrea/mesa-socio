@@ -38,6 +38,11 @@ export async function POST() {
       for (let i = 0; i < novas.length; i += 200) {
         await sb.from("conversas").upsert(novas.slice(i, i + 200), { onConflict: "instancia,jid", ignoreDuplicates: true });
       }
+      // grupos que ficaram só com o número (ex.: 120363…): põe o nome
+      const { data: semNome } = await sb.from("conversas").select("id,jid,nome").eq("instancia", inst).eq("is_grupo", true);
+      for (const c of semNome || []) {
+        if (/^\d{10,}/.test(c.nome || "") && nomeGrupo.get(c.jid)) await sb.from("conversas").update({ nome: nomeGrupo.get(c.jid) }).eq("id", c.id);
+      }
       resultado[inst] = novas.length;
       encontradas[inst] = chats.length;
     }

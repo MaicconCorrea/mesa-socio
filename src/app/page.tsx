@@ -3,6 +3,7 @@ import TarefaCard from "@/components/TarefaCard";
 import { db } from "@/lib/db";
 import { agoraTexto, fimDoDia, haQuanto } from "@/lib/fmt";
 import AgendaHoje from "@/components/AgendaHoje";
+import EmailsEsperando from "@/components/EmailsEsperando";
 import { analisarAgora, criarTarefa, grupoResolvido, jaRespondi } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -104,13 +105,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
             {ver !== "pessoal" ? (
               <>
                 <h2>✉️ E-mails esperando você {emails?.length ? <span className="contador">{emails.length}</span> : null}</h2>
-                {emails?.length ? emails.map((e) => (
-                  <div className="card" key={e.thread_id}>
-                    <a className="titulo" href={`/email?thread=${e.thread_id}`}>{e.assunto}</a>
-                    <div className="meta">{e.de} · {haQuanto(e.recebido_em)}</div>
-                    {e.resumo ? <div className="trecho" style={{ fontStyle: "normal" }}>🤖 {e.resumo}</div> : null}
-                  </div>
-                )) : <div className="vazio">Nenhum e-mail esperando. 🎉</div>}
+                <EmailsEsperando emails={emails || []} />
 
                 <h2>⏳ Esperando resposta sua {esperando?.length ? <span className="contador">{esperando.length}</span> : null}</h2>
                 {esperando?.length ? esperando.map((c) => (

@@ -8,9 +8,9 @@ import { avisarUmaVez, notificar } from "./push";
 
 export async function registrarThread(t: ResumoThread) {
   const sb = db();
-  const { data: ja } = await sb.from("email_threads").select("status,ultima_msg_id").eq("thread_id", t.id).maybeSingle();
+  const { data: ja } = await sb.from("email_threads").select("status,ultima_msg_id,ia_dispensou").eq("thread_id", t.id).maybeSingle();
   const mudou = !ja || ja.ultima_msg_id !== t.ultimaMsgId;
-  const esperando = !t.ultimaMinha && !t.automatico;
+  const esperando = !t.ultimaMinha && !t.automatico && ja?.ia_dispensou !== t.ultimaMsgId;
   let status = ja?.status ?? "nova";
   if (t.ultimaMinha) status = "tratada";            // você respondeu
   else if (mudou && ja && ja.status !== "ignorada") status = "nova"; // chegou coisa nova

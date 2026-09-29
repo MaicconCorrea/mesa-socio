@@ -387,6 +387,15 @@ export default function ChatApp() {
     setTimeout(() => { if (el) el.scrollTop = el.scrollHeight - alturaAntes; }, 50);
   }
 
+  async function marcarTodasLidas() {
+    const ids = filtrada.filter(c => c.nao_lidas > 0).map(c => c.id);
+    if (!ids.length) return;
+    if (ids.length > 5 && !confirm(`Marcar ${ids.length} conversa(s) como lidas?`)) return;
+    setLista(l => l.map(c => ids.includes(c.id) ? { ...c, nao_lidas: 0 } : c));
+    await fetch("/api/chat/lidas-todas", { method: "POST", body: JSON.stringify({ ids }) });
+    carregarLista();
+  }
+
   if (carregando) return <><h1>WhatsApp</h1><p className="muted">Carregando…</p></>;
 
   return (
@@ -428,7 +437,8 @@ export default function ChatApp() {
 
         {/* coluna 2: conversas */}
         <div className="dg-col2">
-          <div className="cab"><button className="dg-voltar" onClick={() => setViewMobile("atendentes")}>← Filtros</button><b>{filtrada.length} conversa(s)</b></div>
+          <div className="cab"><button className="dg-voltar" onClick={() => setViewMobile("atendentes")}>← Filtros</button><b>{filtrada.length} conversa(s)</b>
+            {filtrada.some(c => c.nao_lidas > 0) && <button className="linkbtn small" style={{ marginLeft: "auto" }} onClick={marcarTodasLidas} title="Zera as não lidas das conversas desta lista (no celular nada muda)">✓ marcar todas como lidas</button>}</div>
           <input className="dg-busca" placeholder="Buscar nome ou número…" value={busca} onChange={e => setBusca(e.target.value)} />
           {filtrada.length === 0 && <p className="muted small" style={{ padding: 16 }}>Nada por aqui.</p>}
           {filtrada.map(c => (

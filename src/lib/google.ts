@@ -11,6 +11,7 @@ export const ESCOPOS = {
   chatMensagens: "https://www.googleapis.com/auth/chat.messages",
   chatMembros: "https://www.googleapis.com/auth/chat.memberships.readonly",
   diretorio: "https://www.googleapis.com/auth/directory.readonly",
+  usuarios: "https://www.googleapis.com/auth/admin.directory.user.readonly",
 };
 
 export const minhaConta = () => (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();

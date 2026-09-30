@@ -467,3 +467,4 @@ button.perigo{background:#fff;color:var(--vermelho);border:1px solid var(--line)
 @media (max-width:1250px){
   .dg-conv-cab .acoes .rot{display:none}
 }
+.dg-compositor{position:relative}

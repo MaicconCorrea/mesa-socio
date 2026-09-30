@@ -9,7 +9,7 @@ type Conversa = {
   ultima_msg_em: string | null; ultima_msg_de_mim: boolean | null; ultima_msg_texto: string | null;
   nao_lidas: number; precisa_resposta: boolean; sem_retorno: boolean; resumo: string | null; foto_url?: string | null;
 };
-type Msg = {
+type Msg = { apagada?: boolean;
   id: string; msg_id: string; de_mim: boolean; autor: string | null; texto: string | null; enviada_em: string;
   me_citou: boolean; tipo: string | null; midia_mime: string | null; midia_nome: string | null; tem_midia: boolean; citada_texto?: string | null; transcricao?: string | null; transcricao_erro?: string | null;
 };
@@ -45,6 +45,15 @@ const iniciais = (n: string) => (n || "?").replace(/[^A-Za-zÀ-ú0-9 ]/g, "").tr
 export default function ChatApp() {
   const [conexoes, setConexoes] = useState<string[]>([]);
   const [nomesCx, setNomesCx] = useState<Record<string, string>>({});
+  const instRef = useRef<string | null>(null);
+  const [apagando, setApagando] = useState<any | null>(null);
+  const [encaminhando, setEncaminhando] = useState<{ busca: string; destino: any | null; numero: string; instancia: string } | null>(null);
+  const [encaminhandoAgora, setEncaminhandoAgora] = useState(false);
+  // marcar pessoas com @ (grupos do WhatsApp e espaços do Google Chat)
+  const [participantes, setParticipantes] = useState<{ id: string; nome: string }[]>([]);
+  const [mencoes, setMencoes] = useState<{ id: string; nome: string }[]>([]);
+  const [marcando, setMarcando] = useState<{ termo: string; inicio: number; sel: number } | null>(null);
+  const campoTexto = useRef<HTMLTextAreaElement | null>(null);
   const [lista, setLista] = useState<Conversa[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroLista, setErroLista] = useState("");
@@ -176,9 +185,16 @@ export default function ChatApp() {
 
   // ---- conversa ativa (atualiza a cada 3s) ----
   const irProFim = () => { const el = msgsRef.current; if (el) el.scrollTop = el.scrollHeight; setNovasAbaixo(0); };
+  // guarda as conversas já abertas: trocar de conversa mostra na hora e só depois atualiza
+  const cacheConv = useRef(new Map<string, { conversa: any; mensagens: Msg[]; tarefas: any[] }>());
+  const buscando = useRef(new Set<string>());
   const carregarConversa = useCallback(async (id: string, primeira = false) => {
-    const j = await fetch(`/api/chat/conversa?id=${id}`, { cache: "no-store" }).then(r => r.json()).catch(() => null);
+    if (!primeira && buscando.current.has(id)) return; // não empilha pedidos
+    buscando.current.add(id);
+    const j = await fetch(`/api/chat/conversa?id=${id}`, { cache: "no-store" }).then(r => r.json()).catch(() => null).finally(() => buscando.current.delete(id));
     if (!j || j.erro) return;
+    cacheConv.current.set(id, { conversa: j.conversa, mensagens: j.mensagens || [], tarefas: j.tarefas || [] });
+    if (id !== ativoRef.current) return; // resposta de uma conversa que você já deixou: não mexe na tela
     setConv(j.conversa); setTarefas(j.tarefas || []);
     setMsgs(j.mensagens || []);
     const qtd = (j.mensagens || []).length;
@@ -193,24 +209,36 @@ export default function ChatApp() {
     }
   }, []);
   useEffect(() => {
+    ativoRef.current = ativoId;
     if (!ativoId) return;
-    setMsgs(null); setChat([]); setAviso(""); setNovasAbaixo(0); setCitada(null); setArquivos([]);
+    setChat([]); setAviso(""); setNovasAbaixo(0); setCitada(null); setArquivos([]);
     setSelecionando(false); setSel(new Set()); setInstrucao(null);
-    carregarConversa(ativoId, true);
+    setParticipantes([]); setMencoes([]); setMarcando(null);
+    { const alvo = ativoId; fetch(`/api/chat/participantes?id=${alvo}`).then(r => r.json()).then(j => { if (alvo === ativoRef.current) setParticipantes(j.participantes || []); }).catch(() => {}); }
+    const cache = cacheConv.current.get(ativoId);
+    if (cache) { // já abriu antes: mostra na hora
+      setConv(cache.conversa); setTarefas(cache.tarefas); setMsgs(cache.mensagens);
+      ultimaQtd.current = cache.mensagens.length; grudado.current = true; setTimeout(irProFim, 0);
+    } else { setMsgs(null); setConv(null); setTarefas([]); }
+    carregarConversa(ativoId, !cache);
     if (!historicoPedido.current.has(ativoId)) {
       historicoPedido.current.add(ativoId);
       const id = ativoId;
       fetch("/api/chat/historico", { method: "POST", body: JSON.stringify({ id }) }).then(r => r.json())
-        .then(j => { if (j.importadas) carregarConversa(id, true); }).catch(() => {});
+        .then(j => { if (j.importadas && id === ativoRef.current) carregarConversa(id, true); }).catch(() => {});
     }
-    const t = setInterval(() => { if (document.visibilityState === "visible") carregarConversa(ativoId); }, 3000);
-    // rede de segurança: a cada 20s confere na Evolution se tem mensagem que não chegou pelo webhook (ex.: enviada pelo celular)
     const id = ativoId;
+    const t = setInterval(() => { if (document.visibilityState === "visible" && id === ativoRef.current) carregarConversa(id); }, 3000);
+    // rede de segurança: a cada 6s busca direto na Evolution o que não chegou pelo aviso (ex.: áudio/foto que você manda pelo celular)
+    let varrendo = false;
     const conf = setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      fetch("/api/chat/historico", { method: "POST", body: JSON.stringify({ id, conferir: true, qtd: 20 }) }).then(r => r.json())
-        .then(j => { if (j.importadas) carregarConversa(id); }).catch(() => {});
-    }, 20000);
+      if (document.visibilityState !== "visible" || varrendo || id !== ativoRef.current) return;
+      const instAtual = instRef.current;
+      if (!instAtual || instAtual === "gchat") return;
+      varrendo = true;
+      fetch("/api/chat/varrer", { method: "POST", body: JSON.stringify({ instancia: instAtual }) }).then(r => r.json())
+        .then(j => { if (j.novas && id === ativoRef.current) { carregarConversa(id); carregarLista(); } }).catch(() => {}).finally(() => { varrendo = false; });
+    }, 6000);
     return () => { clearInterval(t); clearInterval(conf); };
   }, [ativoId, carregarConversa]);
 
@@ -247,16 +275,24 @@ export default function ChatApp() {
   const naoLidasCx = (inst: string) => lista.filter(c => c.instancia === inst && c.modo !== "ignorada").reduce((s, c) => s + (c.nao_lidas || 0), 0);
 
   const ativo = lista.find(c => c.id === ativoId) || conv;
+  instRef.current = ativo?.instancia || null;
 
   // ---- ações ----
+  const enviandoRef = useRef(false);
   async function enviar() {
     const t = texto.trim(); if ((!t && !arquivos.length) || !ativoId) return;
-    setEnviando(true); setAviso("");
-    if (arquivos.length) { setEnviando(false); return enviarArquivos(); }
-    const j = await fetch("/api/chat/enviar", { method: "POST", body: JSON.stringify({ id: ativoId, texto: t, citadaId: citada?.id || null }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
-    setEnviando(false);
-    if (j.erro) { setAviso("Não enviou: " + j.erro); return; }
-    setTexto(""); setCitada(null); grudado.current = true; carregarConversa(ativoId); carregarLista();
+    if (enviandoRef.current) return; // um Enter a mais não manda de novo
+    if (arquivos.length) return enviarArquivos();
+    enviandoRef.current = true; setEnviando(true); setAviso("");
+    const alvo = ativoId, cit = citada, tmp = "tmp-" + Date.now();
+    // aparece na hora (com ⏳) enquanto sai
+    setTexto(""); setCitada(null); setMencoes([]); setMarcando(null);
+    setMsgs(ms => [...(ms || []), { id: tmp, msg_id: tmp, de_mim: true, autor: "", texto: t, enviada_em: new Date().toISOString(), tipo: "texto", tem_midia: false, enviandoAgora: true } as any]);
+    grudado.current = true; setTimeout(() => irProFim(), 30);
+    const j = await fetch("/api/chat/enviar", { method: "POST", body: JSON.stringify({ id: alvo, texto: t, citadaId: cit?.id || null, mencoes }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    enviandoRef.current = false; setEnviando(false);
+    if (j.erro) { setAviso("Não enviou: " + j.erro); setTexto(t); setCitada(cit); setMsgs(ms => (ms || []).filter(x => x.id !== tmp)); return; }
+    carregarConversa(alvo); carregarLista();
   }
   async function mudarModo(modo: string) {
     if (!ativoId) return;
@@ -307,7 +343,8 @@ export default function ChatApp() {
   }
 
   async function enviarArquivos() {
-    if (!ativoId || !arquivos.length) return;
+    if (!ativoId || !arquivos.length || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true); setAviso("");
     try {
       for (let i = 0; i < arquivos.length; i++) {
@@ -318,7 +355,7 @@ export default function ChatApp() {
         if (j.erro) { setAviso("Não enviou " + f.name + ": " + j.erro); break; }
       }
       setArquivos([]); setTexto(""); grudado.current = true; carregarConversa(ativoId); carregarLista();
-    } finally { setEnviando(false); }
+    } finally { setEnviando(false); enviandoRef.current = false; }
   }
   function adicionarArquivos(fl: FileList | null) {
     if (!fl?.length) return;
@@ -373,6 +410,48 @@ export default function ChatApp() {
       setSincronizando(`${tot} conversa(s) nova(s) trazidas. ${det}`); carregarLista();
     }
     setTimeout(() => setSincronizando(""), 12000);
+  }
+  const semAcento = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const opcoesMarcar = useMemo(() => {
+    if (!marcando) return [];
+    const t = semAcento(marcando.termo);
+    const lista = [{ id: "todos", nome: "todos" }, ...participantes].filter(p => !t || semAcento(p.nome).includes(t));
+    return lista.slice(0, 8);
+  }, [marcando, participantes]);
+  function aoDigitar(v: string, cursor: number) {
+    setTexto(v);
+    if (!participantes.length) { setMarcando(null); return; }
+    const antes = v.slice(0, cursor);
+    const m = antes.match(/(^|\s)@([^\s@]{0,30})$/);
+    setMarcando(m ? { termo: m[2], inicio: cursor - m[2].length - 1, sel: 0 } : null);
+  }
+  function escolherMarcado(p: { id: string; nome: string }) {
+    if (!marcando) return;
+    const el = campoTexto.current; const cursor = el?.selectionStart ?? texto.length;
+    const novo = texto.slice(0, marcando.inicio) + "@" + p.nome + " " + texto.slice(cursor);
+    setTexto(novo); setMarcando(null);
+    setMencoes(ms => ms.some(x => x.id === p.id) ? ms : [...ms, p]);
+    setTimeout(() => { if (el) { const pos = marcando.inicio + p.nome.length + 2; el.focus(); el.setSelectionRange(pos, pos); } }, 0);
+  }
+  async function encaminhar() {
+    if (!encaminhando) return;
+    const e = encaminhando;
+    if (!e.destino && !e.numero.trim()) return;
+    setEncaminhandoAgora(true);
+    const j = await fetch("/api/chat/encaminhar", { method: "POST", body: JSON.stringify({
+      mensagemIds: Array.from(sel), destinoId: e.destino?.id || null, numero: e.destino ? null : e.numero, instancia: e.instancia }) })
+      .then(r => r.json()).catch(x => ({ erro: String(x) }));
+    setEncaminhandoAgora(false);
+    if (j.erro) { alert(j.erro); return; }
+    setEncaminhando(null); setSelecionando(false); setSel(new Set());
+    setAviso(`↪ ${j.enviadas} mensagem(ns) encaminhada(s) para ${j.destino?.nome || "o destino"}.` + (j.falhas?.length ? ` Não foram: ${j.falhas.join("; ")}` : ""));
+    carregarLista();
+  }
+  async function apagarMsg() {
+    const m = apagando; setApagando(null); if (!m) return;
+    const j = await fetch("/api/chat/apagar", { method: "POST", body: JSON.stringify({ mensagemId: m.id }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { alert(j.erro); return; }
+    if (ativoId) carregarConversa(ativoId, true);
   }
   async function corrigirGchat() {
     setSincronizando("Relendo 30 dias do Google Chat (pode levar 1–2 min)…");
@@ -527,7 +606,8 @@ export default function ChatApp() {
                       {!m.de_mim && ativo.is_grupo && m.autor && <div className="dg-autor" style={{ fontSize: 11, fontWeight: 700, color: "var(--azul)" }}>{m.autor}</div>}
                       {m.me_citou && <span className="citou">📣 falou com você</span>}
                       {m.citada_texto && <div style={{ borderLeft: "3px solid var(--laranja)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--paper)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9 }}>{m.citada_texto.slice(0, 160)}</div>}
-                      {m.tem_midia && (
+                      {m.apagada && <div style={{ fontStyle: "italic", opacity: .75 }}>🚫 {m.de_mim ? "Você apagou esta mensagem" : "Mensagem apagada"}</div>}
+                      {!m.apagada && m.tem_midia && (
                         m.tipo === "imagem" ? <img className="midia" src={link} alt="imagem" loading="lazy" onClick={() => setVisor(m)} onLoad={() => { if (grudado.current) irProFim(); }} />
                         : m.tipo === "audio" ? <div>
                             <audio controls preload="none" src={link} />
@@ -544,9 +624,10 @@ export default function ChatApp() {
                           ? <a href={link} className="dg-doc" onClick={e => { e.preventDefault(); setVisor(m); }}>📄 {m.midia_nome || "documento"}</a>
                           : <a href={link} target="_blank" className="dg-doc">📄 {m.midia_nome || "documento"}</a>
                       )}
-                      {m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
-                      {txt ? <div style={{ whiteSpace: "pre-wrap" }}>{txt}</div> : null}
-                      <span className="qd">{hora(m.enviada_em)} <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button></span>
+                      {!m.apagada && m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
+                      {!m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{txt}</div> : null}
+                      <span className="qd">{(m as any).enviandoAgora ? "⏳ enviando…" : hora(m.enviada_em)} {!m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button>}
+                        {m.de_mim && !m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setApagando(m)} title="Apagar para todos">🗑 apagar</button>}</span>
                     </div>
                   );
                 })}
@@ -564,6 +645,7 @@ export default function ChatApp() {
                       <button className="mini" disabled={!sel.size || pensando} onClick={() => perguntarRapido("Sugira a minha resposta para estas mensagens.", Array.from(sel))}>✍️ Sugerir resposta</button>
                       <button className="mini" disabled={!sel.size} onClick={tarefaDaSelecao}>📌 Criar tarefa</button>
                       <button className="mini" disabled={!sel.size} onClick={() => setSetor(true)}>➡️ Setor</button>
+                      <button className="mini" disabled={!sel.size} onClick={() => setEncaminhando({ busca: "", destino: null, numero: "", instancia: conexoes.find(x => x !== "gchat") || "" })}>↪ Encaminhar</button>
                       <button className="mini sec" onClick={() => { setSelecionando(false); setSel(new Set()); }}>Cancelar</button>
                     </div>}
                     {!selecionando && !ativo.ultima_msg_de_mim && (conv?.sugestao || conv?.resumo) && dispensada !== (conv?.sugestao_em || "x") && <div style={{ background: "#f3f8ff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "7px 10px" }}>
@@ -601,12 +683,26 @@ export default function ChatApp() {
                       : <div style={{ display: "flex", gap: 8 }}
                           onDragOver={e => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
                           onDrop={e => { if (e.dataTransfer.files?.length) { e.preventDefault(); adicionarArquivos(e.dataTransfer.files); } }}>
-                          {ativo.instancia !== "gchat" && <button type="button" className="sec" title="Anexar foto, PDF ou arquivo (até 3 MB)" onClick={() => inputArq.current?.click()}>📎</button>}
+                          <button type="button" className="sec" title="Anexar foto, PDF ou arquivo (até 3 MB)" onClick={() => inputArq.current?.click()}>📎</button>
                           <input ref={inputArq} type="file" multiple hidden onChange={e => { adicionarArquivos(e.target.files); e.target.value = ""; }} />
-                          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2}
+                          {marcando && opcoesMarcar.length > 0 && <div style={{ position: "absolute", bottom: "100%", left: 60, marginBottom: 6, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.14)", minWidth: 260, maxHeight: 280, overflowY: "auto", zIndex: 20 }}>
+                            {opcoesMarcar.map((p, i) => <div key={p.id} onMouseDown={e => { e.preventDefault(); escolherMarcado(p); }}
+                              style={{ padding: "8px 12px", cursor: "pointer", background: i === marcando.sel ? "var(--ambar-bg)" : undefined, display: "flex", gap: 8, alignItems: "center" }}>
+                              <span className="dg-avatar" style={{ width: 26, height: 26, fontSize: 10, background: p.id === "todos" ? "var(--laranja)" : "var(--azul)" }}>{p.id === "todos" ? "@" : iniciais(p.nome)}</span>
+                              <span>{p.id === "todos" ? "todos (marcar o grupo inteiro)" : p.nome}</span></div>)}
+                          </div>}
+                          <textarea ref={campoTexto} value={texto} onChange={e => aoDigitar(e.target.value, e.target.selectionStart ?? e.target.value.length)} rows={2}
                             onPaste={e => { if (e.clipboardData.files?.length) { e.preventDefault(); adicionarArquivos(e.clipboardData.files); } }}
                             placeholder={arquivos.length ? "Legenda (opcional)…" : `Mensagem pelo ${rotuloCx(ativo.instancia)}… (Enter envia · Shift+Enter quebra linha · Win+. emojis)`}
-                            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+                            onKeyDown={e => {
+                              if (marcando && opcoesMarcar.length) {
+                                if (e.key === "ArrowDown") { e.preventDefault(); setMarcando({ ...marcando, sel: (marcando.sel + 1) % opcoesMarcar.length }); return; }
+                                if (e.key === "ArrowUp") { e.preventDefault(); setMarcando({ ...marcando, sel: (marcando.sel - 1 + opcoesMarcar.length) % opcoesMarcar.length }); return; }
+                                if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); escolherMarcado(opcoesMarcar[marcando.sel] || opcoesMarcar[0]); return; }
+                                if (e.key === "Escape") { setMarcando(null); return; }
+                              }
+                              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
+                            }}
                             style={{ flex: 1, minHeight: 44, resize: "none" }} />
                           {texto.trim() || arquivos.length
                             ? <button onClick={enviar} disabled={enviando}>{enviando ? "Enviando…" : arquivos.length ? `Enviar ${arquivos.length}` : "Enviar"}</button>
@@ -670,6 +766,42 @@ export default function ChatApp() {
         )}
       </div>
 
+      {encaminhando && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setEncaminhando(null); }}>
+        <div className="modal-caixa" style={{ width: 520, display: "grid", gap: 8 }}>
+          <b style={{ fontSize: 16 }}>↪ Encaminhar {sel.size} mensagem(ns)</b>
+          <input value={encaminhando.busca} onChange={e => setEncaminhando({ ...encaminhando, busca: e.target.value, destino: null })} placeholder="🔎 Procurar conversa (WhatsApp ou Google Chat)…" autoFocus />
+          <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
+            {lista.filter(c => c.modo !== "ignorada" && (!encaminhando.busca.trim() || `${c.nome} ${c.jid}`.toLowerCase().includes(encaminhando.busca.toLowerCase()))).slice(0, 60).map(c => (
+              <div key={c.id} className="dg-chamado" style={{ padding: "7px 10px", background: encaminhando.destino?.id === c.id ? "var(--ambar-bg)" : undefined }}
+                onClick={() => setEncaminhando({ ...encaminhando, destino: c, numero: "" })}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="nome" style={{ fontWeight: 600 }}>{c.is_grupo ? "👥 " : ""}{c.nome}</div>
+                  <span className={cx(c.instancia)}>{rotuloCx(c.instancia)}</span>
+                </div>
+              </div>))}
+          </div>
+          <div className="muted small">ou para um número novo:</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input value={encaminhando.numero} onChange={e => setEncaminhando({ ...encaminhando, numero: e.target.value, destino: null })} placeholder="DDD + número" />
+            <select value={encaminhando.instancia} onChange={e => setEncaminhando({ ...encaminhando, instancia: e.target.value })} style={{ maxWidth: 170 }}>
+              {conexoes.filter(x => x !== "gchat").map(x => <option key={x} value={x}>{rotuloCx(x)}</option>)}
+            </select>
+          </div>
+          <div className="acoes" style={{ justifyContent: "flex-end" }}>
+            <span className="small muted" style={{ flex: 1 }}>{encaminhando.destino ? `Para: ${encaminhando.destino.nome}` : encaminhando.numero ? `Para: ${encaminhando.numero}` : ""}</span>
+            <button className="sec" onClick={() => setEncaminhando(null)}>Cancelar</button>
+            <button onClick={encaminhar} disabled={encaminhandoAgora || (!encaminhando.destino && !encaminhando.numero.trim())}>{encaminhandoAgora ? "Enviando…" : "Encaminhar"}</button>
+          </div>
+        </div>
+      </div>}
+      {apagando && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setApagando(null); }}>
+        <div className="modal-caixa" style={{ width: 340, textAlign: "center", display: "grid", gap: 10 }}>
+          <b style={{ fontSize: 18 }}>Deseja apagar a mensagem?</b>
+          <p className="small muted" style={{ margin: 0 }}>Some da Mesa, do seu {ativo?.instancia === "gchat" ? "Google Chat" : "celular"} e de quem recebeu.</p>
+          <button className="perigo" onClick={() => apagarMsg()}>Apagar para todos</button>
+          <button className="linkbtn" onClick={() => setApagando(null)}>Cancelar</button>
+        </div>
+      </div>}
       {visor && (() => {
         const link = `/api/chat/midia?id=${visor.id}`;
         const i = midiasVisor.findIndex(m => m.id === visor.id);

@@ -20,7 +20,8 @@ async function api(escopo: string, caminho: string, init: RequestInit = {}) {
     if (/Chat app not found|configure/i.test(t)) throw new Error("Falta configurar o app do Chat no Google Cloud (Google Chat API → Configuração).");
     throw new Error(`Google Chat ${r.status}: ${t.slice(0, 200)}`);
   }
-  return r.json();
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : {};
 }
 
 // ---- nomes das pessoas (users/123 → "Fulano") ----
@@ -114,7 +115,10 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
     midia = { tipo, tem_midia: !!ref, midia_mime: mime, midia_nome: anexo.contentName || "arquivo", midia_ref: ref };
   }
   const marcador = anexo ? (midia.tipo === "imagem" ? "[imagem]" : midia.tipo === "video" ? "[vídeo]" : midia.tipo === "audio" ? "[áudio]" : `[documento: ${midia.midia_nome}]`) : "";
-  const texto = [marcador, String(m.text || "").trim()].filter(Boolean).join(" ").trim();
+  // marcações chegam como <users/123> → mostra @Nome
+  let corpo = String(m.text || "").trim().replace(/<users\/all>/g, "@todos");
+  for (const u of Array.from(new Set(corpo.match(/<users\/\d+>/g) || []))) corpo = corpo.split(u).join("@" + (await pessoa(u.slice(1, -1))).nome);
+  const texto = [marcador, corpo].filter(Boolean).join(" ").trim();
   if (!texto) return false;
   const nomeDaMsg = String(m.sender?.displayName || "").trim();
   if (nomeDaMsg && m.sender?.name && !nomes.has(m.sender.name)) nomes.set(m.sender.name, { nome: nomeDaMsg, email: "", achou: true });
@@ -232,4 +236,44 @@ export async function fotoUsuario(userName: string): Promise<{ bytes: Buffer; mi
   const j = await r.json();
   if (!j.photoData) return null;
   return { bytes: Buffer.from(String(j.photoData).replace(/-/g, "+").replace(/_/g, "/").replace(/\*/g, "=").replace(/\./g, "="), "base64"), mime: j.mimeType || "image/jpeg" };
+}
+
+// Enviar arquivo (foto, PDF…) no Google Chat: sobe o anexo e cria a mensagem com ele
+export async function enviarArquivoChat(espaco: string, a: { bytes: Buffer; mime: string; nome: string; legenda?: string }) {
+  const token = await tokenGoogle(ESCOPOS.chatMensagens);
+  const fronteira = "mesa" + Math.random().toString(36).slice(2);
+  const corpo = Buffer.concat([
+    Buffer.from(`--${fronteira}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ filename: a.nome })}\r\n--${fronteira}\r\nContent-Type: ${a.mime}\r\n\r\n`),
+    a.bytes,
+    Buffer.from(`\r\n--${fronteira}--`),
+  ]);
+  const up = await fetch(`https://chat.googleapis.com/upload/v1/${espaco}/attachments:upload?uploadType=multipart`, {
+    method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${fronteira}` }, body: corpo,
+  });
+  const uj = await up.json().catch(() => ({}));
+  if (!up.ok || !uj.attachmentDataRef) throw new Error(`Google Chat não aceitou o arquivo (${up.status}): ${JSON.stringify(uj).slice(0, 160)}`);
+  const j = await api(ESCOPOS.chatMensagens, `/${espaco}/messages`, {
+    method: "POST", body: JSON.stringify({ ...(a.legenda ? { text: a.legenda } : {}), attachment: [{ attachmentDataRef: uj.attachmentDataRef }] }),
+  });
+  const anexo = j.attachment?.[0];
+  return { id: j.name as string, ref: anexo?.attachmentDataRef?.resourceName ? `chat:${anexo.attachmentDataRef.resourceName}` : null };
+}
+
+// Apagar mensagem minha no Google Chat (some para todos)
+export async function apagarMensagemChat(nomeMensagem: string) {
+  await api(ESCOPOS.chatMensagens, `/${nomeMensagem}`, { method: "DELETE" });
+}
+
+// Participantes de um espaço do Google Chat (para marcar com @)
+export async function participantesChat(espaco: string): Promise<{ id: string; nome: string }[]> {
+  const out: { id: string; nome: string }[] = []; let pg = "";
+  for (let i = 0; i < 3; i++) {
+    const j = await api(ESCOPOS.chatMembros, `/${espaco}/members?pageSize=100${pg ? `&pageToken=${pg}` : ""}`).catch(() => null);
+    for (const m of j?.memberships || []) {
+      if (m.member?.type !== "HUMAN" || !m.member?.name) continue;
+      out.push({ id: m.member.name, nome: m.member.displayName || (await pessoa(m.member.name)).nome });
+    }
+    pg = j?.nextPageToken; if (!pg) break;
+  }
+  return out;
 }

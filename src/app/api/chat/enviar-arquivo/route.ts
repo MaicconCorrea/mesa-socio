@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { enviarArquivo } from "@/lib/evolution";
+import { enviarArquivoChat } from "@/lib/gchat";
 import { marcarLidasAoResponder, registrarEnvio } from "@/lib/envio";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
@@ -13,8 +14,14 @@ export async function POST(req: NextRequest) {
   const sb = db();
   const { data: c } = await sb.from("conversas").select("*").eq("id", id).single();
   if (!c) return NextResponse.json({ erro: "conversa não encontrada" }, { status: 404 });
-  if (c.instancia === "gchat") return NextResponse.json({ erro: "No Google Chat a Mesa envia só texto por enquanto." }, { status: 400 });
   try {
+    if (c.instancia === "gchat") {
+      const r = await enviarArquivoChat(c.jid, { bytes: Buffer.from(base64, "base64"), mime: mime || "application/octet-stream", nome: nome || "arquivo", legenda });
+      const tipo = (mime || "").startsWith("image/") ? "imagem" : (mime || "").startsWith("video/") ? "video" : "documento";
+      const marcador = tipo === "imagem" ? "[imagem]" : tipo === "video" ? "[vídeo]" : `[documento: ${nome}]`;
+      await registrarEnvio(sb, c, { msg_id: r.id, texto: `${marcador} ${legenda || ""}`.trim(), tipo, mime, nome, midia_ref: r.ref });
+      return NextResponse.json({ ok: true });
+    }
     await marcarLidasAoResponder(sb, c);
     const r = await enviarArquivo(c.instancia, c.jid, { base64, mime: mime || "application/octet-stream", nome: nome || "arquivo", legenda });
     const tipo = r.tipo === "image" ? "imagem" : r.tipo === "video" ? "video" : r.tipo === "audio" ? "audio" : "documento";

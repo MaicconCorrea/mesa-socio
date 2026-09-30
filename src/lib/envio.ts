@@ -2,12 +2,12 @@ import { marcarLidas } from "./evolution";
 import { socioAtual } from "./socios";
 
 // Depois de enviar pelo painel: grava a mensagem e atualiza a conversa
-export async function registrarEnvio(sb: any, c: any, m: { msg_id: string; texto: string; tipo: string; mime?: string | null; nome?: string | null; citada_texto?: string | null }) {
+export async function registrarEnvio(sb: any, c: any, m: { msg_id: string; texto: string; tipo: string; mime?: string | null; nome?: string | null; citada_texto?: string | null; midia_ref?: string | null }) {
   const agora = new Date().toISOString();
   await sb.from("mensagens").upsert({
     conversa_id: c.id, msg_id: m.msg_id, de_mim: true, autor: (await socioAtual()).primeiro, texto: m.texto, enviada_em: agora,
     tipo: m.tipo, midia_mime: m.mime || null, midia_nome: m.nome || null, tem_midia: m.tipo !== "texto",
-    citada_texto: m.citada_texto || null,
+    citada_texto: m.citada_texto || null, ...(m.midia_ref ? { midia_ref: m.midia_ref } : {}),
   }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true });
   await sb.from("conversas").update({
     ultima_msg_em: agora, ultima_msg_de_mim: true, ultima_msg_texto: "Você: " + m.texto.slice(0, 200),

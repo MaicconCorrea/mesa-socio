@@ -164,8 +164,10 @@ export async function historico(inst: string, jid: string, qtd = 60): Promise<an
   return Array.isArray(j) ? j : (j?.messages?.records || j?.records || j?.messages || []);
 }
 
-export async function enviarTextoCitando(inst: string, jid: string, texto: string, citada?: { id: string; texto: string; deMim: boolean } | null) {
+export async function enviarTextoCitando(inst: string, jid: string, texto: string, citada?: { id: string; texto: string; deMim: boolean } | null, mencao?: { ids?: string[]; todos?: boolean }) {
   const body: any = { number: numeroEnvio(jid), text: texto };
+  if (mencao?.todos) body.mentionsEveryOne = true;
+  else if (mencao?.ids?.length) body.mentioned = mencao.ids;
   if (citada) body.quoted = { key: { id: citada.id, fromMe: citada.deMim, remoteJid: jid }, message: { conversation: citada.texto || "" } };
   const r = await evo(`/message/sendText/${enc(inst)}`, { method: "POST", body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`Evolution ${r.status}: ${JSON.stringify(r.json).slice(0, 200)}`);
@@ -259,4 +261,35 @@ export async function removerInstancia(inst: string) {
   await evo(`/instance/logout/${enc(inst)}`, { method: "DELETE" }).catch(() => null);
   const r = await evo(`/instance/delete/${enc(inst)}`, { method: "DELETE" });
   return r.ok;
+}
+
+// Últimas mensagens do número inteiro (todas as conversas), mais novas primeiro.
+// Usado pela varredura: pega o que a Evolution guardou mas não avisou (ex.: áudio/foto mandados pelo celular).
+export async function ultimasMensagens(inst: string, qtd = 40): Promise<any[]> {
+  const r = await evo(`/chat/findMessages/${enc(inst)}`, {
+    method: "POST", body: JSON.stringify({ where: {}, page: 1, offset: qtd }),
+  });
+  if (!r.ok) return [];
+  const j = r.json;
+  const lista: any[] = Array.isArray(j) ? j : (j?.messages?.records || j?.records || j?.messages || []);
+  const ts = (m: any) => Number(typeof m.messageTimestamp === "object" ? m.messageTimestamp?.low : m.messageTimestamp) || 0;
+  return lista.sort((a, b) => ts(b) - ts(a)).slice(0, qtd);
+}
+
+// Apagar para todos (só mensagens minhas, dentro do prazo do WhatsApp)
+export async function apagarParaTodos(inst: string, remoteJid: string, msgId: string, participant?: string) {
+  const r = await evo(`/chat/deleteMessageForEveryone/${enc(inst)}`, {
+    method: "DELETE", body: JSON.stringify({ id: msgId, remoteJid, fromMe: true, ...(participant ? { participant } : {}) }),
+  });
+  if (!r.ok) throw new Error(`Não consegui apagar no WhatsApp (${r.status}): ${JSON.stringify(r.json).slice(0, 160)}`);
+  return true;
+}
+
+// Participantes de um grupo (para marcar com @)
+export async function participantesGrupo(inst: string, groupJid: string): Promise<{ id: string; nome: string }[]> {
+  const r = await evo(`/group/participants/${enc(inst)}?groupJid=${encodeURIComponent(groupJid)}`);
+  if (!r.ok) return [];
+  const lista: any[] = r.json?.participants || (Array.isArray(r.json) ? r.json : []);
+  return lista.map(p => ({ id: String(p.id), nome: p.name || p.notify || p.pushName || "", fone: p.phoneNumber || p.jid || "" }))
+    .map(p => ({ id: p.id, nome: p.nome || (p.fone ? String(p.fone).split("@")[0] : p.id.split("@")[0]) }));
 }

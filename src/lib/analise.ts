@@ -6,6 +6,9 @@ import { googleConfigurado } from "./google";
 import { lerConfig } from "./config";
 import { notificar } from "./push";
 import { estiloDoMaiccon } from "./estilo";
+import { comDono } from "./contexto";
+import { personalizar } from "./socios";
+import { dbGlobal } from "./db";
 
 export const MODELO = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MODELO_LEVE = () => process.env.ANTHROPIC_MODEL_LEVE || "claude-haiku-4-5-20251001";
@@ -58,7 +61,7 @@ export async function chamarClaude(sistema: string, conteudo: string, modelo: st
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: modelo, max_tokens: maxTokens, system: sistema, messages: [{ role: "user", content: conteudo }] }),
+    body: JSON.stringify({ model: modelo, max_tokens: maxTokens, system: await personalizar(sistema), messages: [{ role: "user", content: await personalizar(conteudo) }] }),
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`Anthropic ${r.status}: ${JSON.stringify(j).slice(0, 300)}`);
@@ -188,34 +191,34 @@ export async function analisarPendentes(limite = 8) {
 
   // 1) Conversas com mensagem nova (espera 90s de silêncio pra ler o "bloco" inteiro)
   const antes = new Date(Date.now() - 90 * 1000).toISOString();
-  const { data: fila } = await sb.from("conversas").select("id")
-    .eq("pendente_ia", true).neq("modo", "ignorada")
+  const { data: fila } = await dbGlobal().from("conversas").select("id,dono")
+    .eq("pendente_ia", true).neq("modo", "ignorada").not("dono", "is", null)
     .lt("ultima_msg_em", antes).order("ultima_msg_em", { ascending: true }).limit(limite);
 
   for (const c of fila || []) {
     try {
-      const r = await analisarConversa(c.id);
+      const r = await comDono(c.dono, () => analisarConversa(c.id));
       resultado.analisadas++;
       resultado.tarefas += r.criadas;
     } catch (e: any) {
       const msg = e?.message || String(e);
       resultado.erros.push(msg);
       if (msg.includes("ANTHROPIC_API_KEY")) return resultado; // sem chave: mantém na fila
-      await sb.from("conversas").update({ pendente_ia: false, ia_erro: msg.slice(0, 300) }).eq("id", c.id);
+      await dbGlobal().from("conversas").update({ pendente_ia: false, ia_erro: msg.slice(0, 300) }).eq("id", c.id);
     }
   }
 
   // 2) Grupos do escritório silenciosos há X horas
   const corteParado = new Date(Date.now() - HORAS_PARADO() * 3600 * 1000).toISOString();
-  const { data: parados } = await sb.from("conversas").select("id")
+  const { data: parados } = await dbGlobal().from("conversas").select("id,dono")
     .eq("modo", "grupo").eq("checar_parado", true).eq("ultima_msg_de_mim", false)
     .lt("ultima_msg_em", corteParado).order("ultima_msg_em", { ascending: true }).limit(10);
 
   for (const c of parados || []) {
-    try { await checarGrupoParado(c.id); resultado.grupos_checados++; }
+    try { await comDono(c.dono, () => checarGrupoParado(c.id)); resultado.grupos_checados++; }
     catch (e: any) {
       resultado.erros.push(e?.message || String(e));
-      await sb.from("conversas").update({ checar_parado: false }).eq("id", c.id);
+      await dbGlobal().from("conversas").update({ checar_parado: false }).eq("id", c.id);
     }
   }
   return resultado;
@@ -251,7 +254,7 @@ ${estilo}`;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO(), max_tokens: 1200, system: sistema,
+    body: JSON.stringify({ model: MODELO(), max_tokens: 1200, system: await personalizar(sistema),
       messages: [...historico.slice(-10), { role: "user", content: pergunta }] }),
   });
   const j = await r.json();
@@ -349,7 +352,7 @@ Responda SOMENTE o texto da mensagem, sem aspas e sem explicação.`;
   if (!key) throw new Error("ANTHROPIC_API_KEY não configurada na Vercel");
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST", headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO(), max_tokens: 800, system: sis, messages: [{ role: "user", content: conteudo }] }),
+    body: JSON.stringify({ model: MODELO(), max_tokens: 800, system: await personalizar(sis), messages: [{ role: "user", content: await personalizar(conteudo) }] }),
   });
   const j = await r.json();
   if (!r.ok) throw new Error(`Anthropic ${r.status}: ${JSON.stringify(j).slice(0, 200)}`);

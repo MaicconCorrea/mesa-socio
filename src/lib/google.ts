@@ -16,7 +16,10 @@ export const ESCOPOS = {
   contatos: "https://www.googleapis.com/auth/contacts.readonly",
 };
 
-export const minhaConta = () => (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();
+import { donoAtual } from "./contexto";
+export const minhaConta = () => (donoAtual() || process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();
+// Consultas de administrador (cadastro de usuários e grupos) sempre como o admin do Workspace
+export const contaAdmin = () => (process.env.GOOGLE_ADMIN_EMAIL || "maiccon@outtax.com.br").toLowerCase();
 export const googleConfigurado = () => !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
 function credenciais() {

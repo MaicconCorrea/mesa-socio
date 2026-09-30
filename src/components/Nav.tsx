@@ -10,7 +10,7 @@ const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] =
   { titulo: "Sistema", itens: [["/config", "Configuração", "⚙️"]] },
 ];
 
-export default function Nav({ email }: { email?: string }) {
+export default function Nav({ email, nome }: { email?: string; nome?: string }) {
   const p = usePathname();
   const [aberto, setAberto] = useState(false);
   const [recolhido, setRecolhido] = useState(false);
@@ -73,7 +73,7 @@ export default function Nav({ email }: { email?: string }) {
           ))}
         </nav>
         <div className="lateral-eu">
-          <div className="lateral-texto"><b>Maiccon</b><span>{email || "sócio"}</span></div>
+          <div className="lateral-texto"><b>{nome || "Sócio"}</b><span>{email || "sócio"}</span></div>
           <form action={sair}><button type="submit" title="Sair">{recolhido ? "⎋" : "sair"}</button></form>
         </div>
       </aside>

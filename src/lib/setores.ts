@@ -1,5 +1,5 @@
 // Setores da Outtax = grupos do Google Workspace. Quem está no grupo grava reuniões daquele setor.
-import { ESCOPOS, tokenGoogle } from "./google";
+import { ESCOPOS, contaAdmin, tokenGoogle } from "./google";
 
 export const SETORES: Record<string, { codigo: string; nome: string }> = {
   "dp@outtax.com.br": { codigo: "DP", nome: "Departamento Pessoal" },
@@ -19,7 +19,7 @@ export async function setoresDoUsuario(email: string) {
   const e = email.toLowerCase();
   const c = cache.get(e); if (c && Date.now() - c.em < 10 * 60000) return c.setores;
   const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/groups?userKey=${encodeURIComponent(e)}&maxResults=200`, {
-    headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.grupos)}` }, cache: "no-store",
+    headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.grupos, contaAdmin())}` }, cache: "no-store",
   });
   if (!r.ok) throw new Error(`Não consegui ler os grupos do Google (${r.status}). Falta o escopo admin.directory.group.readonly na delegação.`);
   const j = await r.json();

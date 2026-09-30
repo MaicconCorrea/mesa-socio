@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pessoa, sincronizarChat, ultimoErroNome } from "@/lib/gchat";
 import { db } from "@/lib/db";
+import { lerConfig } from "@/lib/config";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
 export const maxDuration = 300;
@@ -19,8 +20,8 @@ export async function POST() {
       await sb.from("conversas").update({ ultima_msg_texto: (m.de_mim ? "Você: " : c.is_grupo ? m.autor + ": " : "") + String(m.texto || "").slice(0, 200) }).eq("id", c.id);
     }
     // teste de nome com o meu próprio usuário
-    const cfg: any = (await db().from("config").select("valor").eq("chave", "chat_meu_id").maybeSingle()).data;
-    const teste = cfg?.valor ? await pessoa(String(cfg.valor)) : null;
+    const meuId = ((await lerConfig()) as any).chat_meu_id;
+    const teste = meuId ? await pessoa(String(meuId)) : null;
     return NextResponse.json({ ok: true, ...r, nomesFuncionando: !!teste?.achou, erroNome: teste?.achou ? "" : ultimoErroNome });
   } catch (e) { return erro(e); }
 }

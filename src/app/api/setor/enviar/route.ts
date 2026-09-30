@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { socioAtual } from "@/lib/socios";
 import { db } from "@/lib/db";
 import { criarSolicitacao } from "@/lib/acessorias";
 import { baixarMidia } from "@/lib/evolution";
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
     const solId = await criarSolicitacao({
       assunto: b.assunto, empresa: b.empresa_cnpj, departamento: String(b.departamento),
-      descricao: `${b.descricao}\n\n— Enviado pelo Maiccon (Mesa do Sócio)`, prioridade: Number(b.prioridade ?? 2), prazo: b.prazo || null, arquivos,
+      descricao: `${b.descricao}\n\n— Enviado por ${(await socioAtual()).nome} (Mesa do Sócio)`, prioridade: Number(b.prioridade ?? 2), prazo: b.prazo || null, arquivos,
     });
     const { data: ch } = await sb.from("chamados").insert({
       sol_id: solId, empresa_cnpj: b.empresa_cnpj, empresa_nome: b.empresa_nome, departamento: String(b.departamento), departamento_nome: b.departamento_nome,

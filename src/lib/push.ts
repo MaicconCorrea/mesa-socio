@@ -2,6 +2,7 @@
 import webpush from "web-push";
 import { db } from "./db";
 import { lerConfig } from "./config";
+import { donoAtual } from "./contexto";
 
 let configurado = false;
 function garantirConfig() {
@@ -20,6 +21,7 @@ export function horaSP() {
 // tipo "mensagem" respeita o silêncio da noite; "agenda"/"prazo"/"resumo" sempre tocam
 export async function notificar(titulo: string, corpo: string, url = "/", tag?: string, tipo: "mensagem" | "agenda" | "prazo" | "resumo" | "teste" = "mensagem") {
   if (!pushConfigurado()) return { enviadas: 0 };
+  if (!donoAtual()) return { enviadas: 0 }; // sem sócio definido não avisa ninguém (evita avisar o sócio errado)
   if (tipo === "mensagem") {
     const cfg = await lerConfig();
     const h = horaSP();
@@ -42,7 +44,7 @@ export async function notificar(titulo: string, corpo: string, url = "/", tag?: 
 
 // Só avisa uma vez por chave (ex.: "agenda|<id do evento>")
 export async function avisarUmaVez(chave: string, f: () => Promise<any>) {
-  const { data, error } = await db().from("avisos_enviados").insert({ chave }).select("chave");
+  const { data, error } = await db().from("avisos_enviados").insert({ chave: `${donoAtual() || "*"}|${chave}` }).select("chave");
   if (error || !data?.length) return false; // já avisado
   await f();
   return true;

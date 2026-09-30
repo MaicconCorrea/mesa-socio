@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { instancias, listarChats, listarGrupos } from "@/lib/evolution";
+import { listarChats, listarGrupos } from "@/lib/evolution";
+import { minhasInstancias } from "@/lib/numeros";
 import { numeroDoJid } from "@/lib/fmt";
 import { paraData } from "@/lib/gravar";
 import { erro, logado, naoAutorizado } from "@/lib/api";
@@ -15,7 +16,7 @@ export async function POST() {
   const encontradas: Record<string, number> = {};
   const limite = Date.now() - 90 * 86400 * 1000;
   try {
-    for (const inst of instancias()) {
+    for (const inst of await minhasInstancias()) {
       const [chats, grupos] = await Promise.all([listarChats(inst), listarGrupos(inst)]);
       const nomeGrupo = new Map(grupos.map(g => [g.id, g.subject]));
       const { data: ja } = await sb.from("conversas").select("jid").eq("instancia", inst);
@@ -36,7 +37,7 @@ export async function POST() {
         existentes.add(jid);
       }
       for (let i = 0; i < novas.length; i += 200) {
-        await sb.from("conversas").upsert(novas.slice(i, i + 200), { onConflict: "instancia,jid", ignoreDuplicates: true });
+        await sb.from("conversas").upsert(novas.slice(i, i + 200), { onConflict: "dono,instancia,jid", ignoreDuplicates: true });
       }
       // grupos que ficaram só com o número (ex.: 120363…): põe o nome
       const { data: semNome } = await sb.from("conversas").select("id,jid,nome").eq("instancia", inst).eq("is_grupo", true);

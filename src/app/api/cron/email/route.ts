@@ -4,6 +4,8 @@ import { sincronizarEmail } from "@/lib/email-sync";
 import { googleConfigurado } from "@/lib/google";
 import { importarReunioes } from "@/lib/reunioes";
 import { checarChamados } from "@/lib/chamados";
+import { listarSocios } from "@/lib/socios";
+import { comDono } from "@/lib/contexto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -16,7 +18,14 @@ export async function GET(req: NextRequest) {
   const r: any = { ok: true };
   try { r.chamados = await checarChamados(); } catch (e: any) { r.erroChamados = e?.message; }
   if (!googleConfigurado()) return NextResponse.json({ ...r, pulado: "sem GOOGLE_SERVICE_ACCOUNT_JSON" });
-  try { r.email = await sincronizarEmail(6); } catch (e: any) { r.erroEmail = String(e?.message ?? e); }
-  try { r.reunioes = await importarReunioes(2); } catch (e: any) { r.erroReunioes = String(e?.message ?? e); }
+  r.socios = {};
+  for (const s of await listarSocios()) {
+    const x: any = {};
+    await comDono(s.email, async () => {
+      try { x.email = await sincronizarEmail(6); } catch (e: any) { x.erroEmail = String(e?.message ?? e); }
+      try { x.reunioes = await importarReunioes(2); } catch (e: any) { x.erroReunioes = String(e?.message ?? e); }
+    });
+    r.socios[s.email] = x;
+  }
   return NextResponse.json(r);
 }

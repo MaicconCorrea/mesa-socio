@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const escolhido = setores.find(s => s.codigo === setor) || setores[0];
   const { data, error } = await db().from("reunioes").insert({
     titulo: String(titulo || "Reunião gravada").slice(0, 200), data: new Date().toISOString(), origem: "gravada",
-    setor: escolhido.codigo, autor_email: u.email, autor_nome: u.nome,
+    setor: escolhido.codigo, autor_email: u.email, autor_nome: u.nome, dono: escolhido.codigo === "SOCIOS" ? u.email : null,
   }).select("id").single();
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
   return NextResponse.json({ id: data.id, setor: escolhido, segundosPedaco: process.env.OPENAI_API_KEY ? 300 : 55 });

@@ -1,4 +1,6 @@
 import AutoRefresh from "@/components/AutoRefresh";
+import { socioAtual } from "@/lib/socios";
+import { meusNumeros } from "@/lib/numeros";
 import TarefaCard from "@/components/TarefaCard";
 import { db } from "@/lib/db";
 import { agoraTexto, fimDoDia, haQuanto } from "@/lib/fmt";
@@ -11,6 +13,8 @@ export const dynamic = "force-dynamic";
 export default async function Hoje({ searchParams }: { searchParams: { ver?: string } }) {
   const ver = ["trabalho", "pessoal"].includes(searchParams.ver || "") ? searchParams.ver! : "tudo";
   const sb = db();
+  const nomeNum = Object.fromEntries((await meusNumeros(true)).map(n => [n.instancia, n.nome]));
+  const cxNome = (i: string) => i === "gchat" ? "Google Chat" : (nomeNum[i] || i.replace(/^socio-/, ""));
 
   let qt = sb.from("tarefas").select("*, conversas(nome,instancia)").eq("status", "aberta");
   if (ver !== "tudo") qt = qt.eq("categoria", ver);
@@ -45,7 +49,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
     <>
       <AutoRefresh />
       <div className="conteudo">
-        <h1>Bom trabalho, Maiccon 👋</h1>
+        <h1>Bom trabalho, {(await socioAtual()).primeiro} 👋</h1>
         <div className="sub">
           {agoraTexto()} · {lista.length} tarefa(s) · {esperando?.length || 0} esperando você · {parados?.length || 0} grupo(s) sem retorno do time
           {naFila ? <> · 🤖 {naFila} na fila da IA </> : null}
@@ -111,7 +115,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
                 {esperando?.length ? esperando.map((c) => (
                   <div className="card" key={c.id}>
                     <div className="linha">
-                      <span className="selo inst">{c.instancia}</span>
+                      <span className="selo inst">{cxNome(c.instancia)}</span>
                       <a className="titulo" href={`/whatsapp?c=${c.id}`}>{c.is_grupo ? "👥 " : ""}{c.nome}</a>
                     </div>
                     <div className="meta">{haQuanto(c.ultima_msg_em)}</div>
@@ -137,7 +141,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
                 {parados?.length ? parados.map((c) => (
                   <div className="card parado" key={c.id}>
                     <div className="linha">
-                      <span className="selo inst">{c.instancia}</span>
+                      <span className="selo inst">{cxNome(c.instancia)}</span>
                       <a className="titulo" href={`/whatsapp?c=${c.id}`}>👥 {c.nome}</a>
                     </div>
                     <div className="meta">parado {haQuanto(c.ultima_msg_em)}</div>

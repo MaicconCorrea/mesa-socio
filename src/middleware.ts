@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+// Assina o e-mail de quem está logado (o servidor confere a assinatura antes de confiar no cabeçalho)
+async function assinar(email: string) {
+  const chave = await crypto.subtle.importKey("raw", new TextEncoder().encode(process.env.WEBHOOK_SECRET || "mesa"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", chave, new TextEncoder().encode(email.toLowerCase()));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(
@@ -27,7 +34,13 @@ export async function middleware(req: NextRequest) {
     url.search = "";
     return NextResponse.redirect(url);
   }
-  return res;
+  // repassa "quem é" para as telas e rotas (cada sócio só vê o que é dele)
+  const h = new Headers(req.headers);
+  h.delete("x-mesa-dono"); h.delete("x-mesa-dono-sig");
+  if (data.user?.email) { h.set("x-mesa-dono", data.user.email.toLowerCase()); h.set("x-mesa-dono-sig", await assinar(data.user.email)); }
+  const final = NextResponse.next({ request: { headers: h } });
+  res.cookies.getAll().forEach(c => final.cookies.set(c));
+  return final;
 }
 
 export const config = {

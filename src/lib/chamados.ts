@@ -2,6 +2,7 @@
 import { db } from "./db";
 import { acessoriasConfigurado, buscarSolicitacao } from "./acessorias";
 import { notificar } from "./push";
+import { comDono } from "./contexto";
 
 export async function checarChamados() {
   if (!acessoriasConfigurado()) return { conferidos: 0, finalizados: 0 };
@@ -17,7 +18,7 @@ export async function checarChamados() {
       await sb.from("chamados").update({ status: st, ...(st === "F" ? { finalizado_em: new Date().toISOString() } : {}) }).eq("id", c.id);
       if (st === "F") {
         finalizados++;
-        await notificar(`✅ ${c.departamento_nome || "Setor"} finalizou`, `${c.assunto} — ${c.empresa_nome || ""}`, c.conversa_id ? `/whatsapp?c=${c.conversa_id}` : "/", `ch-${c.id}`);
+        if (c.dono) await comDono(c.dono, () => notificar(`✅ ${c.departamento_nome || "Setor"} finalizou`, `${c.assunto} — ${c.empresa_nome || ""}`, c.conversa_id ? `/whatsapp?c=${c.conversa_id}` : "/", `ch-${c.id}`));
       }
     }
   }

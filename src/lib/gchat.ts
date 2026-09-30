@@ -2,7 +2,9 @@
 // Cada espaço/conversa do Chat vira uma "conversa" da Mesa com instancia = "gchat" — assim IA, sugestões,
 // tarefas, avisos e "esperando resposta" funcionam igual ao WhatsApp.
 import { db } from "./db";
-import { ESCOPOS, minhaConta, tokenGoogle } from "./google";
+import { socioAtual } from "./socios";
+import { ESCOPOS, contaAdmin, minhaConta, tokenGoogle } from "./google";
+import { donoAtual } from "./contexto";
 import { lerConfig, gravarConfig } from "./config";
 import { notificar } from "./push";
 
@@ -30,12 +32,12 @@ export async function pessoa(userName: string): Promise<{ nome: string; email: s
   const id = userName.replace("users/", "");
   let out = { nome: "Contato externo", email: "", achou: false };
   try { // 1) Admin SDK (usuários do Workspace da Outtax)
-    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}?projection=basic`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}?projection=basic`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios, contaAdmin())}` } });
     if (r.ok) { const j = await r.json(); if (j.name?.fullName) out = { nome: j.name.fullName, email: String(j.primaryEmail || "").toLowerCase(), achou: true }; }
     else ultimoErroNome = `Admin SDK ${r.status}: ${(await r.text()).slice(0, 160)}`;
   } catch (e: any) { ultimoErroNome = String(e?.message ?? e); }
   if (!out.achou) try { // 2) People API (diretório)
-    const r = await fetch(`https://people.googleapis.com/v1/people/${id}?personFields=names,emailAddresses&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.diretorio)}` } });
+    const r = await fetch(`https://people.googleapis.com/v1/people/${id}?personFields=names,emailAddresses&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.diretorio, contaAdmin())}` } });
     if (r.ok) { const j = await r.json(); if (j.names?.[0]?.displayName) out = { nome: j.names[0].displayName, email: (j.emailAddresses?.[0]?.value || "").toLowerCase(), achou: true }; }
     else if (!ultimoErroNome) ultimoErroNome = `People ${r.status}: ${(await r.text()).slice(0, 160)}`;
   } catch { /* sem nome */ }
@@ -45,7 +47,7 @@ export async function pessoa(userName: string): Promise<{ nome: string; email: s
 
 // Mensagens antigas gravadas só com o número (109725…): troca pelo nome
 async function corrigirNomes(sb: any) {
-  const { data } = await sb.from("mensagens").select("autor, conversas!inner(instancia)").eq("conversas.instancia", GCHAT).eq("de_mim", false).limit(2000);
+  const { data } = await sb.from("mensagens").select("autor, conversas!inner(instancia,dono)").eq("conversas.instancia", GCHAT).eq("conversas.dono", donoAtual() || "-").eq("de_mim", false).limit(2000);
   const ids = Array.from(new Set((data || []).map((m: any) => m.autor).filter((a: string) => /^\d{10,}$/.test(a || ""))));
   for (const id of ids.slice(0, 30)) {
     const p = await pessoa(`users/${id}`);
@@ -66,7 +68,7 @@ async function meuId(espacos: any[]): Promise<string | null> {
   if (cfg.chat_meu_id) return cfg.chat_meu_id;
   const eu = minhaConta();
   try { // o id do Chat é o mesmo id do usuário no Workspace
-    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(eu)}?projection=basic`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(eu)}?projection=basic`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios, contaAdmin())}` } });
     if (r.ok) { const j = await r.json(); if (j.id) { await gravarConfig({ chat_meu_id: `users/${j.id}` } as any); return `users/${j.id}`; } }
   } catch { /* tenta pelos membros */ }
   for (const e of espacos.filter(x => x.spaceType === "DIRECT_MESSAGE").slice(0, 5)) {
@@ -116,7 +118,7 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
   if (!texto) return false;
   const nomeDaMsg = String(m.sender?.displayName || "").trim();
   if (nomeDaMsg && m.sender?.name && !nomes.has(m.sender.name)) nomes.set(m.sender.name, { nome: nomeDaMsg, email: "", achou: true });
-  const autor = deMim ? "Maiccon" : (nomeDaMsg || (await pessoa(m.sender?.name || "")).nome);
+  const autor = deMim ? (await socioAtual()).primeiro : (nomeDaMsg || (await pessoa(m.sender?.name || "")).nome);
   const meCitou = !deMim && (MEU_NOME.test(texto) || (m.annotations || []).some((a: any) => a.type === "USER_MENTION" && a.userMention?.user?.name === eu));
   const quando = new Date(m.createTime);
   const { data: ins } = await sb.from("mensagens").upsert({
@@ -170,7 +172,7 @@ export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: 
     if (!conv) {
       const isGrupo = e.spaceType !== "DIRECT_MESSAGE";
       const { data } = await sb.from("conversas").upsert({ instancia: GCHAT, jid: e.name, is_grupo: isGrupo, modo: isGrupo ? "grupo" : "auto", nome: await nomeDoEspaco(e, eu) },
-        { onConflict: "instancia,jid" }).select("*").single();
+        { onConflict: "dono,instancia,jid" }).select("*").single();
       conv = data; novas++;
     }
     const desde = conv.ultima_msg_em && !opcoes.historico && !opcoes.forcar ? new Date(new Date(conv.ultima_msg_em).getTime() - 1000).toISOString() : new Date(limite).toISOString();
@@ -225,7 +227,7 @@ async function nomesDasDiretas(sb: any, eu: string | null) {
 // Foto de um usuário do Workspace (Admin SDK)
 export async function fotoUsuario(userName: string): Promise<{ bytes: Buffer; mime: string } | null> {
   const id = userName.replace("users/", "");
-  const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}/photos/thumbnail`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+  const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}/photos/thumbnail`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios, contaAdmin())}` } });
   if (!r.ok) return null;
   const j = await r.json();
   if (!j.photoData) return null;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { socioAtual } from "@/lib/socios";
 import { db } from "@/lib/db";
 import { enviarEmail } from "@/lib/gmail";
 import { minhaConta } from "@/lib/google";
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   const { data: r } = await sb.from("reunioes").select("*").eq("id", id).single();
   if (!r) return NextResponse.json({ erro: "reunião não encontrada" }, { status: 404 });
   try {
-    await enviarEmail(minhaConta(), process.env.MEU_NOME || "Maiccon Correa", {
+    await enviarEmail(minhaConta(), (await socioAtual()).nome, {
       para, assunto: `Resumo da reunião — ${r.titulo}${r.data ? " (" + dataHora(r.data).slice(0, 5) + ")" : ""}`, corpo: String(texto || ""),
     });
     return NextResponse.json({ ok: true });

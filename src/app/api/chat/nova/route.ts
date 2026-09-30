@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { conferirNumero, enviarTextoCitando, instancias } from "@/lib/evolution";
+import { conferirNumero, enviarTextoCitando } from "@/lib/evolution";
+import { minhasInstancias } from "@/lib/numeros";
 import { registrarEnvio } from "@/lib/envio";
 import { numeroDoJid } from "@/lib/fmt";
 import { erro, logado, naoAutorizado } from "@/lib/api";
@@ -11,7 +12,7 @@ export const maxDuration = 30;
 export async function POST(req: NextRequest) {
   if (!(await logado())) return naoAutorizado();
   const { instancia, numero, nome, texto } = await req.json().catch(() => ({}));
-  if (!instancias().includes(instancia)) return NextResponse.json({ erro: "escolha o número (conexão)" }, { status: 400 });
+  if (!(await minhasInstancias()).includes(instancia)) return NextResponse.json({ erro: "escolha o número (conexão)" }, { status: 400 });
   let n = String(numero || "").replace(/\D/g, "");
   if (n.length === 10 || n.length === 11) n = "55" + n; // digitou só DDD + número
   if (n.length < 12) return NextResponse.json({ erro: "número inválido — use DDD + número" }, { status: 400 });

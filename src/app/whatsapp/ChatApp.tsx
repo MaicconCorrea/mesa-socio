@@ -44,6 +44,7 @@ const iniciais = (n: string) => (n || "?").replace(/[^A-Za-zÀ-ú0-9 ]/g, "").tr
 
 export default function ChatApp() {
   const [conexoes, setConexoes] = useState<string[]>([]);
+  const [nomesCx, setNomesCx] = useState<Record<string, string>>({});
   const [lista, setLista] = useState<Conversa[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroLista, setErroLista] = useState("");
@@ -119,7 +120,7 @@ export default function ChatApp() {
   }, []);
 
   const cx = (inst: string) => `cx cx-${Math.max(0, conexoes.indexOf(inst)) % 3}`;
-  const rotuloCx = (inst: string) => inst === "gchat" ? "🗨️ Google Chat" : "📱 " + inst.replace(/^socio-/, "");
+  const rotuloCx = (inst: string) => inst === "gchat" ? "🗨️ Google Chat" : "📱 " + (nomesCx[inst] || inst.replace(/^socio-/, ""));
 
   // ---- lista (atualiza a cada 4s) ----
   const carregarLista = useCallback(async () => {
@@ -127,7 +128,7 @@ export default function ChatApp() {
       const j = await fetch("/api/chat/lista", { cache: "no-store" }).then(r => r.json());
       if (j.erro) { setErroLista(j.erro); return; }
       const convs: Conversa[] = j.conversas || [];
-      setConexoes(j.conexoes || []); setLista(convs); setErroLista("");
+      setConexoes(j.conexoes || []); setNomesCx(j.nomes || {}); setLista(convs); setErroLista("");
       // avisos de mensagem nova (conversas individuais e pessoais; grupos só quando falam com você)
       const antes = anteriores.current;
       const agora = new Map(convs.map(c => [c.id, c.nao_lidas || 0]));
@@ -153,7 +154,7 @@ export default function ChatApp() {
     if (pushLigado.current) return; // o aviso do sistema já vem pelo push (evita duplicar)
     for (const c of relevantes.slice(0, 3)) {
       try {
-        const n = new Notification(`${c.nome} · 📱 ${c.instancia.replace(/^socio-/, "")}`, { body: c.ultima_msg_texto || "Mensagem nova", tag: c.id, icon: "/icone-192.png" });
+        const n = new Notification(`${c.nome} · ${rotuloCx(c.instancia)}`, { body: c.ultima_msg_texto || "Mensagem nova", tag: c.id, icon: "/icone-192.png" });
         n.onclick = () => { window.focus(); setAtivoId(c.id); setViewMobile("conversa"); n.close(); };
       } catch {}
     }

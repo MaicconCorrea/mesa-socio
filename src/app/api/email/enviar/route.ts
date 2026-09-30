@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { socioAtual } from "@/lib/socios";
 import { db } from "@/lib/db";
 import { baixarAnexo, enviarEmail } from "@/lib/gmail";
 import { minhaConta } from "@/lib/google";
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
     const anexos: { nome: string; bytes: Buffer; mime?: string }[] = [];
     for (const a of b.arquivos || []) anexos.push({ nome: a.nome, mime: a.mime, bytes: Buffer.from(a.base64, "base64") });
     for (const s of (b.anexosEmail || []) as string[]) { const [msg, att, nome, mime] = s.split("|"); anexos.push({ nome, mime, bytes: await baixarAnexo(conta, msg, att) }); }
-    await enviarEmail(conta, process.env.MEU_NOME || "Maiccon Correa", {
+    await enviarEmail(conta, (await socioAtual()).nome, {
       para, cc: b.cc || undefined, assunto: String(b.assunto || ""), corpo, threadId: b.threadId || undefined,
       inReplyTo: b.inReplyTo || undefined, references: b.references || undefined, anexos,
     });

@@ -1,5 +1,7 @@
 // Resumo do dia (8h) e do fim do dia (17:30)
 import { db } from "./db";
+import { meusNumeros } from "./numeros";
+import { socioAtual } from "./socios";
 import { dataHora, fimDoDia, hojeISO } from "./fmt";
 import { googleConfigurado } from "./google";
 import { listarEventos } from "./agenda";
@@ -38,9 +40,10 @@ export async function montarResumo(periodo: "manha" | "tarde") {
     } catch (e: any) { erroAgenda = e.message; }
   }
 
+  const nomeNum = Object.fromEntries((await meusNumeros(true)).map(n => [n.instancia, n.nome]));
   const linha = (x: any) => `• ${x.titulo}${x.prazo ? ` (${periodo === "manha" || new Date(x.prazo) < agora ? dataHora(x.prazo) : hm(x.prazo)})` : ""}${x.categoria === "pessoal" ? " 🏠" : ""}`;
   const partes: string[] = [];
-  const titulo = periodo === "manha" ? "☀️ Bom dia, Maiccon! Seu dia:" : "🌙 Fechamento do dia";
+  const titulo = periodo === "manha" ? `☀️ Bom dia, ${(await socioAtual()).primeiro}! Seu dia:` : "🌙 Fechamento do dia";
   partes.push(`*${titulo}*`);
 
   if (periodo === "manha") {
@@ -55,7 +58,7 @@ export async function montarResumo(periodo: "manha" | "tarde") {
     partes.push(`\n🗓️ *Amanhã*\n${[...eventos.map(e => `• ${e.diaInteiro ? "dia inteiro" : hm(e.inicio)} — ${e.titulo}${e.meet ? " 🎥" : ""}`), ...deAmanha.map(linha)].join("\n") || "• nada marcado"}`);
     if (feitasHoje?.length) partes.push(`\n✅ *Resolvido hoje:* ${feitasHoje.length} tarefa(s)`);
   }
-  if (esperando?.length) partes.push(`\n💬 *Esperando resposta sua no WhatsApp* (${esperando.length})\n${esperando.slice(0, 10).map(c => `• ${c.nome} (📱${c.instancia.replace(/^socio-/, "")})`).join("\n")}`);
+  if (esperando?.length) partes.push(`\n💬 *Esperando resposta sua no WhatsApp* (${esperando.length})\n${esperando.slice(0, 10).map(c => `• ${c.nome} (${c.instancia === "gchat" ? "Google Chat" : "📱 " + (nomeNum[c.instancia] || c.instancia)})`).join("\n")}`);
   if (emails?.length) partes.push(`\n✉️ *E-mails esperando você* (${emails.length})\n${emails.slice(0, 8).map(e => `• ${e.de} — ${e.assunto}`).join("\n")}`);
   if (parados?.length) partes.push(`\n👥 *Grupos sem retorno do time* (${parados.length})\n${parados.slice(0, 8).map(c => `• ${c.nome}${c.resumo ? ": " + c.resumo : ""}`).join("\n")}`);
   if (semPrazo.length && periodo === "manha") partes.push(`\n📋 Mais ${semPrazo.length} tarefa(s) sem prazo na Mesa.`);

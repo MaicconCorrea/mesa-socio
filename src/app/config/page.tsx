@@ -1,8 +1,7 @@
 import { db } from "@/lib/db";
-import { estado, instancias, webhookAtual } from "@/lib/evolution";
 import { hojeISO } from "@/lib/fmt";
-import { clientIdContaServico, ESCOPOS, googleConfigurado, minhaConta, tokenGoogle } from "@/lib/google";
-import { ligarWebhook } from "../actions";
+import { clientIdContaServico, contaAdmin, ESCOPOS, googleConfigurado, minhaConta, tokenGoogle } from "@/lib/google";
+import MeusNumeros from "@/components/MeusNumeros";
 import Avisos from "@/components/Avisos";
 import EstiloIA from "@/components/EstiloIA";
 import GravadorConfig from "@/components/GravadorConfig";
@@ -14,13 +13,9 @@ import { pushConfigurado } from "@/lib/push";
 export const dynamic = "force-dynamic";
 
 export default async function Config({ searchParams }: { searchParams: { msg?: string } }) {
-  const insts = await Promise.all(instancias().map(async (i) => ({
-    nome: i, estado: await estado(i), webhook: await webhookAtual(i),
-  })));
-
-  const testar = async (esc: string) => { try { await tokenGoogle(esc); return "ok"; } catch (e: any) { return String(e?.message ?? e); } };
+  const testar = async (esc: string, conta?: string) => { try { await tokenGoogle(esc, conta); return "ok"; } catch (e: any) { return String(e?.message ?? e); } };
   const g = googleConfigurado() ? { gmail: await testar(ESCOPOS.gmail), agenda: await testar(ESCOPOS.agenda), drive: await testar(ESCOPOS.drive),
-    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio), usuarios: await testar(ESCOPOS.usuarios), grupos: await testar(ESCOPOS.grupos), contatos: await testar(ESCOPOS.contatos) } : null;
+    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio, contaAdmin()), usuarios: await testar(ESCOPOS.usuarios, contaAdmin()), grupos: await testar(ESCOPOS.grupos, contaAdmin()), contatos: await testar(ESCOPOS.contatos) } : null;
 
   const inicioMes = `${hojeISO().slice(0, 7)}-01T00:00:00-03:00`;
   const { data: uso } = await db().from("ia_uso").select("tokens_in,tokens_out").gte("em", inicioMes);
@@ -39,28 +34,8 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
         {searchParams.msg ? <div className="aviso">{searchParams.msg}</div> : null}
         {faltando.length ? <div className="aviso">⚠️ Faltam variáveis na Vercel: <b>{faltando.join(", ")}</b></div> : null}
 
-        <h2>WhatsApp (Evolution)</h2>
-        <table>
-          <thead><tr><th>Instância</th><th>Conexão</th><th>Webhook</th><th></th></tr></thead>
-          <tbody>
-            {insts.map((i) => {
-              const ligado = i.webhook?.enabled && i.webhook.url.includes("/api/webhook/evolution");
-              return (
-                <tr key={i.nome}>
-                  <td><b>{i.nome}</b></td>
-                  <td>{i.estado === "open" ? "🟢 conectada" : `🔴 ${i.estado}`}</td>
-                  <td>{ligado ? "🟢 ligado neste painel" : i.webhook?.url ? `🟡 aponta para outro lugar` : "⚪ desligado"}</td>
-                  <td>
-                    <form action={ligarWebhook}>
-                      <input type="hidden" name="instancia" value={i.nome} />
-                      <button className="primario">{ligado ? "Religar webhook" : "Ligar webhook"}</button>
-                    </form>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <h2>📱 Meus números de WhatsApp</h2>
+        <MeusNumeros />
 
         <h2>🤖 IA: sugestões, meu jeito de escrever e áudios</h2>
         <EstiloIA motor={motorTranscricao()} />

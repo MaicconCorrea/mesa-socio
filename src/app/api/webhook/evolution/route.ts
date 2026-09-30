@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { soNumero } from "@/lib/evolution";
 import { gravarMensagem } from "@/lib/gravar";
+import { donoDoNumero } from "@/lib/numeros";
+import { comDono } from "@/lib/contexto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,9 +35,14 @@ export async function POST(req: NextRequest) {
   const lista: any[] = Array.isArray(body.data) ? body.data
     : Array.isArray(body.data?.messages) ? body.data.messages : [body.data];
 
-  const sb = db();
-  let gravadas = 0;
-  for (const m of lista) { if (await gravarMensagem(sb, instancia, meuNumero, m)) gravadas++; }
+  // de qual sócio é esse número? (número sem dono = ignorado)
+  const dono = await donoDoNumero(instancia);
+  if (!dono) return NextResponse.json({ ok: true, ignorado: "número sem dono" });
+  const gravadas = await comDono(dono, async () => {
+    const sb = db(); let n = 0;
+    for (const m of lista) { if (await gravarMensagem(sb, instancia, meuNumero, m)) n++; }
+    return n;
+  });
   return NextResponse.json({ ok: true, gravadas });
 }
 

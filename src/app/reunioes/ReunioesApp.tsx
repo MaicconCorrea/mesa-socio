@@ -75,7 +75,7 @@ export default function ReunioesApp() {
     const outros = minhas.filter(t => t.titulo.startsWith("Cobrar"));
     const txt = [`Olá, pessoal!`, ``, `Segue o resumo da nossa reunião${r.data ? " de " + dt(r.data).slice(0, 5) : ""}:`, ``, r.resumo || "",
       ...(r.decisoes?.length ? [``, `Decisões:`, ...r.decisoes.map(d => `• ${d}`)] : []),
-      ...(minhasAbertas.length || outros.length ? [``, `Próximos passos:`, ...minhasAbertas.map(t => `• Outtax/Maiccon: ${t.titulo}${t.prazo ? " — até " + dt(t.prazo).slice(0, 5) : ""}`),
+      ...(minhasAbertas.length || outros.length ? [``, `Próximos passos:`, ...minhasAbertas.map(t => `• Outtax: ${t.titulo}${t.prazo ? " — até " + dt(t.prazo).slice(0, 5) : ""}`),
         ...outros.map(t => `• ${t.quem || ""}: ${t.titulo.replace(/^Cobrar [^:]+:\s*/, "")}${t.prazo ? " — até " + dt(t.prazo).slice(0, 5) : ""}`)] : []),
       ``, `Qualquer ajuste, me avisem.`, ``, `Abraço,`, `Maiccon Correa`, `Outtax`].join("\n");
     setEmail({ para: "", texto: txt });

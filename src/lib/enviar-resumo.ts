@@ -1,7 +1,8 @@
 import { lerConfig } from "./config";
 import { montarResumo } from "./resumo";
 import { notificar } from "./push";
-import { enviarTextoCitando, instancias } from "./evolution";
+import { enviarTextoCitando } from "./evolution";
+import { minhasInstancias } from "./numeros";
 import { enviarEmail } from "./gmail";
 import { googleConfigurado, minhaConta } from "./google";
 
@@ -21,7 +22,9 @@ export async function enviarResumo(periodo: "manha" | "tarde") {
   const para = String(cfg.resumo_whats_para || "").replace(/\D/g, "");
   if (para) {
     try {
-      const de = cfg.resumo_whats_de && instancias().includes(cfg.resumo_whats_de) ? cfg.resumo_whats_de : instancias()[0];
+      const minhas = await minhasInstancias();
+      const de = cfg.resumo_whats_de && minhas.includes(cfg.resumo_whats_de) ? cfg.resumo_whats_de : minhas[0];
+      if (!de) throw new Error("você não tem número de WhatsApp cadastrado");
       const numero = para.length <= 11 ? "55" + para : para;
       await enviarTextoCitando(de, `${numero}@s.whatsapp.net`, r.texto, null);
       feito.push("WhatsApp");

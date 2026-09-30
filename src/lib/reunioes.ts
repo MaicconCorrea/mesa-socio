@@ -5,6 +5,7 @@ import { chamarClaude, MODELO, normalizar } from "./analise";
 import { buscarDocsReuniao, textoDoDoc } from "./drive";
 import { lerConfig } from "./config";
 import { notificar } from "./push";
+import { comDono, donoAtual } from "./contexto";
 
 const SISTEMA = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ).
 Você recebe as anotações ou a transcrição de uma reunião (a transcrição automática pode errar nomes: "acessórios" costuma ser o sistema "Acessórias", "domínio" o sistema "Domínio"). Produza:
@@ -25,10 +26,11 @@ const SISTEMA_EQUIPE = `Você é assistente do escritório de contabilidade Outt
 Prazos relativos a partir da DATA DA REUNIÃO. Responda SOMENTE JSON, sem crases:
 {"titulo":"","resumo":"","decisoes":[],"participantes":[],"tarefas":[]}`;
 
-export async function analisarReuniao(id: string) {
+export async function analisarReuniao(id: string): Promise<{ criadas: number; titulo: string }> {
   const sb = db();
   const { data: r } = await sb.from("reunioes").select("*").eq("id", id).single();
   if (!r) throw new Error("reunião não encontrada");
+  if (r.dono && donoAtual() !== r.dono) return comDono(r.dono, () => analisarReuniao(id)); // tarefas vão pro sócio certo
   let texto = r.texto as string | null;
   if (!texto && r.doc_id) { texto = await textoDoDoc(r.doc_id); await sb.from("reunioes").update({ texto: texto.slice(0, 200000) }).eq("id", id); }
   if (!texto || texto.length < 40) throw new Error("Documento vazio ou curto demais.");

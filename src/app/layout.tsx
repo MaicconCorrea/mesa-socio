@@ -1,4 +1,5 @@
 import "./globals.css";
+import { listarSocios } from "@/lib/socios";
 import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import RegistrarApp from "@/components/RegistrarApp";
@@ -22,7 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className={u ? "com-lateral" : ""}>
-        {u && <Nav email={u.email} />}
+        {u && <Nav email={u.email} nome={u.email ? (await listarSocios()).find(s => s.email === u.email!.toLowerCase())?.primeiro : undefined} />}
         {u && <RegistrarApp />}
         <main>{children}</main>
       </body>

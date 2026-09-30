@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { instancias, listarContatos } from "@/lib/evolution";
+import { listarContatos } from "@/lib/evolution";
+import { minhasInstancias } from "@/lib/numeros";
+import { donoAtual } from "@/lib/contexto";
 import { ESCOPOS, googleConfigurado, tokenGoogle } from "@/lib/google";
 import { logado, naoAutorizado } from "@/lib/api";
 
@@ -18,9 +20,11 @@ function normalizarBR(n: string) {
 }
 
 // Cache em memória (a lista de contatos muda pouco)
-let cache: { em: number; lista: Contato[]; google: string } | null = null;
+const caches = new Map<string, { em: number; lista: Contato[]; google: string }>();
 
 async function montar(): Promise<{ lista: Contato[]; google: string }> {
+  const dono = donoAtual() || "-";
+  const cache = caches.get(dono);
   if (cache && Date.now() - cache.em < 10 * 60000) return cache;
   const mapa = new Map<string, Contato>();
   const add = (numero: string, nome: string, foto: string | null, fonte: string) => {
@@ -48,7 +52,7 @@ async function montar(): Promise<{ lista: Contato[]; google: string }> {
     } catch (e: any) { google = String(e?.message || e).slice(0, 120); }
   }
   // 2) Contatos do WhatsApp (Evolution), por número
-  for (const inst of instancias()) {
+  for (const inst of await minhasInstancias()) {
     try { for (const c of await listarContatos(inst)) add(c.jid.split("@")[0], c.nome, c.foto, "whatsapp"); } catch { /* segue */ }
   }
   // 3) Quem já conversou com você
@@ -58,8 +62,9 @@ async function montar(): Promise<{ lista: Contato[]; google: string }> {
     add(n, c.nome && !/^\(?\d/.test(c.nome) ? c.nome : "", c.foto_url, "conversa");
     mapa.get(n)?.conversas.push({ id: c.id, instancia: c.instancia });
   }
-  cache = { em: Date.now(), lista: Array.from(mapa.values()), google };
-  return cache;
+  const novo = { em: Date.now(), lista: Array.from(mapa.values()), google };
+  caches.set(dono, novo);
+  return novo;
 }
 
 export async function GET(req: NextRequest) {

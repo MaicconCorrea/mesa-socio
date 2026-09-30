@@ -15,7 +15,7 @@ export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string
         {t.prazo ? <>⏰ {dataHora(t.prazo)} · </> : null}
         {t.quem ? <>👤 {t.quem} · </> : null}
         {t.conversas ? (
-          <a href={`/whatsapp?c=${t.conversa_id}`}>💬 {t.conversas.nome} ({t.conversas.instancia})</a>
+          <a href={`/whatsapp?c=${t.conversa_id}`}>💬 {t.conversas.nome}</a>
         ) : t.origem === "email" && t.email_thread_id ? <a href={`/email?thread=${t.email_thread_id}`}>✉️ e-mail</a>
           : t.origem === "reuniao" && t.reuniao_id ? <a href={`/reunioes?r=${t.reuniao_id}`}>🎙️ reunião</a>
           : t.origem === "manual" ? "✍️ anotação manual" : null}

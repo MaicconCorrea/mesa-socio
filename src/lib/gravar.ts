@@ -1,10 +1,16 @@
 // Grava uma mensagem da Evolution no banco (usado pelo webhook e pela importação de histórico)
 import { contexto, extrairTexto, infoMidia, nomeDoGrupo, soNumero } from "./evolution";
+import { nomeDoNumero } from "./numeros";
 import { numeroDoJid } from "./fmt";
 import { lerConfig } from "./config";
 import { notificar } from "./push";
+import { socioAtual } from "./socios";
 
-const MEU_NOME = /\bmai+c+o+[nm]\b/i; // Maiccon, Maicon, Maicom...
+const MEU_NOME_MAICCON = /\bmai+c+o+[nm]\b/i; // Maiccon, Maicon, Maicom...
+function regexDoNome(primeiro: string) {
+  if (/^mai+c+o+[nm]$/i.test(primeiro)) return MEU_NOME_MAICCON;
+  return new RegExp(`\\b${primeiro.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "")}\\b`, "i");
+}
 
 export function paraData(ts: any): Date {
   let n = ts;
@@ -83,7 +89,9 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
   const isGrupo = jid.endsWith("@g.us");
   const deMim = !!key.fromMe;
   const quando = paraData(m.messageTimestamp);
-  const autor = deMim ? "Maiccon" : (m.pushName || numeroDoJid(key.participant || jid));
+  const socio = await socioAtual();
+  const autor = deMim ? socio.primeiro : (m.pushName || numeroDoJid(key.participant || jid));
+  const MEU_NOME = regexDoNome(socio.primeiro);
 
   const ctx = contexto(m.message, m);
   const meCitou = !deMim && (
@@ -100,7 +108,7 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
     else if (!deMim && m.pushName) nome = m.pushName;
     const { data: nova } = await sb.from("conversas").upsert({
       instancia, jid, is_grupo: isGrupo, nome: nome || numeroDoJid(jid), modo: isGrupo ? "grupo" : "auto",
-    }, { onConflict: "instancia,jid" }).select("id,nome,modo,ultima_msg_em,nao_lidas").single();
+    }, { onConflict: "dono,instancia,jid" }).select("id,nome,modo,ultima_msg_em,nao_lidas").single();
     conv = nova;
   } else if (!isGrupo && !deMim && m.pushName && conv.nome === numeroDoJid(jid)) {
     await sb.from("conversas").update({ nome: m.pushName }).eq("id", conv.id);
@@ -142,7 +150,7 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
   if (!opcoes.historico && !deMim && Date.now() - quando.getTime() < 10 * 60000) {
     try {
       const cfg = await lerConfig();
-      const cx = "📱" + instancia.replace(/^socio-/, "");
+      const cx = "📱 " + (await nomeDoNumero(instancia));
       const corpo = texto.replace(/^\[(imagem|vídeo|áudio)\]\s*/, (m0) => m0.includes("áudio") ? "🎤 áudio " : m0.includes("imagem") ? "📷 foto " : "🎥 vídeo ");
       if (conv.modo !== "grupo" && cfg.push_whats)
         await notificar(`${conv.nome || autor} · ${cx}`, corpo, `/whatsapp?c=${conv.id}`, `wa-${conv.id}`);

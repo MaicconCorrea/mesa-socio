@@ -229,3 +229,34 @@ export async function listarContatos(inst: string): Promise<{ jid: string; nome:
   return r.json.map((c: any) => ({ jid: c.remoteJid || c.id, nome: c.pushName || c.name || "", foto: c.profilePicUrl || null }))
     .filter((c: any) => c.jid && String(c.jid).endsWith("@s.whatsapp.net"));
 }
+
+// ---------------- v0.13: números cadastrados pelo próprio sócio ----------------
+export async function criarInstancia(nomeInstancia: string, webhookUrl: string) {
+  const r = await evo(`/instance/create`, {
+    method: "POST",
+    body: JSON.stringify({
+      instanceName: nomeInstancia, integration: "WHATSAPP-BAILEYS", qrcode: true,
+      rejectCall: false, groupsIgnore: false, alwaysOnline: false, readMessages: false, readStatus: false, syncFullHistory: false,
+      webhook: { url: webhookUrl, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "SEND_MESSAGE"] },
+    }),
+  });
+  if (!r.ok) throw new Error(`Evolution ${r.status}: ${JSON.stringify(r.json).slice(0, 200)}`);
+  await ligarWebhook(nomeInstancia, webhookUrl).catch(() => {}); // garante (versões antigas ignoram o webhook no create)
+  return r.json;
+}
+
+// QR Code para conectar (imagem base64) — ou "open" se já conectou
+export async function qrCode(inst: string): Promise<{ estado: string; qr: string | null; codigo: string | null }> {
+  const est = await estado(inst);
+  if (est === "open") return { estado: "open", qr: null, codigo: null };
+  const r = await evo(`/instance/connect/${enc(inst)}`);
+  const j = r.json || {};
+  const qr = j.base64 || j.qrcode?.base64 || null;
+  return { estado: est, qr: qr ? (String(qr).startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null, codigo: j.pairingCode || null };
+}
+
+export async function removerInstancia(inst: string) {
+  await evo(`/instance/logout/${enc(inst)}`, { method: "DELETE" }).catch(() => null);
+  const r = await evo(`/instance/delete/${enc(inst)}`, { method: "DELETE" });
+  return r.ok;
+}

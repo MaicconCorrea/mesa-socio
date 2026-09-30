@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!(await extensaoAutorizada(req))) return semChave();
   const { titulo } = await req.json().catch(() => ({}));
   const { data, error } = await db().from("reunioes").insert({
-    titulo: String(titulo || "Reunião gravada").slice(0, 200), data: new Date().toISOString(), origem: "gravada", texto: null,
+    titulo: String(titulo || "Reunião gravada").slice(0, 200), data: new Date().toISOString(), origem: "gravada", texto: null, dono: (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase(),
   }).select("id").single();
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
   // OpenAI transcreve pedaços grandes; o Google só até 1 min

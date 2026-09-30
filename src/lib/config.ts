@@ -1,5 +1,6 @@
 // Preferências da Mesa (tabela config). Valores padrão quando ainda não foram mexidos.
-import { db } from "./db";
+import { dbGlobal } from "./db";
+import { donoAtual } from "./contexto";
 
 export const PADRAO = {
   push_whats: true,          // mensagem nova no privado (automático/pessoal)
@@ -21,17 +22,25 @@ export const PADRAO = {
 };
 export type Config = typeof PADRAO;
 
-let cache: { em: number; c: Config } | null = null;
+// Configurações do escritório (valem para todos os sócios); o resto é de cada sócio
+const GLOBAIS = new Set(["chaves_painel", "chave_gravador"]);
+const dono = () => donoAtual() || (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();
+
+const cache = new Map<string, { em: number; c: Config }>();
 export async function lerConfig(): Promise<Config> {
-  if (cache && Date.now() - cache.em < 30000) return cache.c;
-  const { data } = await db().from("config").select("chave,valor");
+  const d = dono();
+  const c0 = cache.get(d); if (c0 && Date.now() - c0.em < 30000) return c0.c;
+  const { data } = await dbGlobal().from("config").select("dono,chave,valor").in("dono", ["*", d]);
   const c: any = { ...PADRAO };
-  for (const r of data || []) if (r.chave in PADRAO) c[r.chave] = r.valor;
-  cache = { em: Date.now(), c };
+  for (const r of (data || []).sort((a: any, b: any) => (a.dono === "*" ? -1 : 1) - (b.dono === "*" ? -1 : 1)))
+    if (r.chave in PADRAO && (GLOBAIS.has(r.chave) ? r.dono === "*" : true)) c[r.chave] = r.valor;
+  cache.set(d, { em: Date.now(), c });
   return c;
 }
 export async function gravarConfig(parcial: Partial<Config>) {
-  const linhas = Object.entries(parcial).filter(([k]) => k in PADRAO).map(([chave, valor]) => ({ chave, valor, atualizado_em: new Date().toISOString() }));
-  if (linhas.length) await db().from("config").upsert(linhas, { onConflict: "chave" });
-  cache = null;
+  const d = dono();
+  const linhas = Object.entries(parcial).filter(([k]) => k in PADRAO)
+    .map(([chave, valor]) => ({ dono: GLOBAIS.has(chave) ? "*" : d, chave, valor, atualizado_em: new Date().toISOString() }));
+  if (linhas.length) await dbGlobal().from("config").upsert(linhas, { onConflict: "dono,chave" });
+  cache.clear();
 }

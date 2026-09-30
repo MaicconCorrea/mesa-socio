@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { personalizar } from "@/lib/socios";
 import { lerThread, textoDaThread } from "@/lib/gmail";
 import { minhaConta } from "@/lib/google";
 import { agoraTexto } from "@/lib/fmt";
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   const { threadId, historico, pergunta } = await req.json().catch(() => ({}));
   try {
     const t = await lerThread(minhaConta(), threadId);
-    const sistema = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ). Responda em português, direto.
+    const sistema = await personalizar(`Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ). Responda em português, direto.
 E-mail sugerido: só o corpo, cordial e objetivo, assinado "Maiccon Correa — Outtax".
 Formato da sua resposta:
 - Primeiro, se ajudar, uma explicação curta PARA O MAICCON (máx. 3 frases).
@@ -21,7 +22,7 @@ Formato da sua resposta:
 - Em assunto técnico (imposto, prazo, valor), não afirme números ou limites que você não tem certeza; prefira "vou confirmar e te retorno".
 Agora: ${agoraTexto()}.
 E-mail (assunto: ${t.assunto}):
-${textoDaThread(t).slice(-16000)}`;
+${textoDaThread(t).slice(-16000)}`);
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": process.env.ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },

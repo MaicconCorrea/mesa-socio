@@ -115,6 +115,7 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
     midia = { tipo, tem_midia: !!ref, midia_mime: mime, midia_nome: anexo.contentName || "arquivo", midia_ref: ref };
   }
   const marcador = anexo ? (midia.tipo === "imagem" ? "[imagem]" : midia.tipo === "video" ? "[vídeo]" : midia.tipo === "audio" ? "[áudio]" : `[documento: ${midia.midia_nome}]`) : "";
+  const citada = m.quotedMessageMetadata?.name ? await textoCitado(sb, m.quotedMessageMetadata.name) : null;
   // marcações chegam como <users/123> → mostra @Nome
   let corpo = String(m.text || "").trim().replace(/<users\/all>/g, "@todos");
   for (const u of Array.from(new Set(corpo.match(/<users\/\d+>/g) || []))) corpo = corpo.split(u).join("@" + (await pessoa(u.slice(1, -1))).nome);
@@ -127,11 +128,11 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
   const quando = new Date(m.createTime);
   const { data: ins } = await sb.from("mensagens").upsert({
     conversa_id: conv.id, msg_id: m.name, de_mim: deMim, autor, texto: texto.slice(0, 4000), enviada_em: quando.toISOString(),
-    me_citou: meCitou, ...midia, citada_texto: m.quotedMessageMetadata ? "[mensagem citada]" : null, participante: m.sender?.name || null,
+    me_citou: meCitou, ...midia, citada_texto: citada, participante: m.sender?.name || null,
   }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true }).select("id");
   if (!ins?.length) {
     // já existia (gravada antes): acerta nome de quem mandou e o anexo
-    const upd: any = { participante: m.sender?.name || null };
+    const upd: any = { participante: m.sender?.name || null, ...(citada ? { citada_texto: citada } : {}) };
     if (!deMim && !/^Contato/.test(autor)) upd.autor = autor;
     if (anexo && midia.midia_ref) Object.assign(upd, midia, { texto: texto.slice(0, 4000) });
     if (Object.keys(upd).length) await sb.from("mensagens").update(upd).eq("conversa_id", conv.id).eq("msg_id", m.name);
@@ -275,5 +276,26 @@ export async function participantesChat(espaco: string): Promise<{ id: string; n
     }
     pg = j?.nextPageToken; if (!pg) break;
   }
+  return out;
+}
+
+// Mensagem citada: "Autor: texto" — procura no banco; se não tiver, busca no Google Chat
+const citadas = new Map<string, string>();
+async function textoCitado(sb: any, nome: string): Promise<string> {
+  if (citadas.has(nome)) return citadas.get(nome)!;
+  let out = "";
+  const { data } = await sb.from("mensagens").select("autor,texto,de_mim").eq("msg_id", nome).limit(1);
+  if (data?.[0]) out = `${data[0].de_mim ? "Você" : data[0].autor || "Contato"}: ${data[0].texto || ""}`;
+  else {
+    try {
+      const j = await api(ESCOPOS.chatMensagens, `/${nome}`);
+      let corpo = String(j.text || (j.attachment?.length ? `[anexo: ${j.attachment[0].contentName || "arquivo"}]` : "")).trim();
+      for (const u of Array.from(new Set(corpo.match(/<users\/\d+>/g) || []))) corpo = corpo.split(u).join("@" + (await pessoa(u.slice(1, -1))).nome);
+      const quem = j.sender?.displayName || (j.sender?.name ? (await pessoa(j.sender.name)).nome : "Contato");
+      out = `${quem}: ${corpo}`;
+    } catch { out = "[mensagem citada — não encontrada]"; }
+  }
+  out = out.slice(0, 300);
+  citadas.set(nome, out);
   return out;
 }

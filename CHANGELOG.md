@@ -37,3 +37,4 @@
 | v0.13.9 | 30/09/2026 | Tarefas: "🔎 Ver de onde veio" mostra ali mesmo as mensagens em volta do pedido (mensagem exata destacada, quem mandou, número/espaço, quando), o e-mail (de quem, assunto, trecho) ou a reunião | — |
 | v0.14 | 30/09/2026 | Resolver com IA: anexar documentos (PDF, Word, imagem, texto) que ficam guardados na tarefa e a IA lê em todas as perguntas; IA gera documentos completos (ex.: contrato) com ⬇ Baixar Word, 📎 Anexar ao envio e 📋 Copiar | 015_documentos_tarefa.sql |
 | v0.14.1 | 30/09/2026 | Documento gerado pela IA também em PDF (A4, título centralizado, cláusulas em negrito, texto justificado, página X de Y): ⬇ Baixar PDF e 📎 Anexar PDF ao envio | — |
+| v0.14.2 | 30/09/2026 | Google Chat: resposta citando mostra quem escreveu e o texto da mensagem citada (busca no banco ou no Google Chat); "Corrigir Google Chat" acerta as antigas | — |

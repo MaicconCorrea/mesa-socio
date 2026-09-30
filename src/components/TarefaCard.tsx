@@ -3,6 +3,7 @@ import { dataHora, ROTULO_TIPO } from "@/lib/fmt";
 import AgendarBotao from "./AgendarBotao";
 import SetorBotao from "./SetorBotao";
 import ResolverTarefa from "./ResolverTarefa";
+import OrigemTarefa from "./OrigemTarefa";
 
 export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string }) {
   return (
@@ -24,6 +25,7 @@ export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string
       {t.detalhe ? <div className="meta">{t.detalhe}</div> : null}
       {t.trecho ? <div className="trecho">“{t.trecho}”</div> : null}
       {t.conflito ? <div className="meta" style={{ color: "var(--vermelho)", fontWeight: 600 }}>⚠️ {t.conflito}</div> : null}
+      {t.origem !== "manual" ? <OrigemTarefa id={t.id} /> : null}
       <div className="acoes">
         <form action={concluirTarefa}><input type="hidden" name="id" value={t.id} /><button className="ok">✓ Feito</button></form>
         <form action={descartarTarefa}><input type="hidden" name="id" value={t.id} /><button className="perigo">Descartar</button></form>

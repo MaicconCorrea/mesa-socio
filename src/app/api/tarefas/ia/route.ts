@@ -7,9 +7,10 @@ import { estiloDoMaiccon } from "@/lib/estilo";
 import { personalizar } from "@/lib/socios";
 import { agoraTexto } from "@/lib/fmt";
 import { meusNumeros } from "@/lib/numeros";
+import { blocosParaIA } from "@/lib/docs";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
-export const maxDuration = 90;
+export const maxDuration = 300; // documento longo (contrato) leva mais tempo pra IA escrever
 
 // Contexto de uma tarefa: de onde ela veio (conversa, e-mail ou reunião) + para onde responder
 async function contexto(tarefaId: string) {
@@ -57,12 +58,22 @@ export async function POST(req: NextRequest) {
   if (!key) return NextResponse.json({ erro: "ANTHROPIC_API_KEY não configurada" }, { status: 400 });
   try {
     const { t, origem } = await contexto(tarefaId);
+    const { data: docs } = await db().from("tarefa_docs").select("nome,mime,caminho").eq("tarefa_id", tarefaId).order("criado_em");
+    const anexos = docs?.length ? [
+      { role: "user", content: [...(await blocosParaIA(docs)), { type: "text", text: `Estes são os documentos anexados a esta tarefa (${docs.map((d: any) => d.nome).join(", ")}). Use-os como base.` }] },
+      { role: "assistant", content: "Recebi os documentos e vou usá-los." },
+    ] : [];
     const sistema = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade e BPO no RJ). Ele quer RESOLVER esta tarefa agora.
 Ajude de forma prática: diga o caminho mais curto, escreva o que ele precisa mandar e, se for o caso, redija o documento/texto pedido (contrato simples, e-mail, orientação ao cliente).
 Formato:
 - Explicação para o Maiccon, curta (máx. 4 frases), quando ajudar.
 - Mensagem pronta para mandar ao cliente SEMPRE entre [MENSAGEM] e [/MENSAGEM], em primeira pessoa, no jeito dele, sem asteriscos.
 - Em imposto, prazo legal ou valor: não invente número; diga "vou confirmar e te retorno" ou sugira mandar pro setor.
+- Quando pedirem um DOCUMENTO (contrato, proposta, declaração, procuração, e-mail formal longo): escreva o documento COMPLETO entre [DOCUMENTO titulo="Nome do documento"] e [/DOCUMENTO].
+  Dentro dele use "# " para o título, "## " para cada cláusula/seção, "- " para itens e **negrito** só em nomes das partes e termos-chave. Nada de comentários seus dentro do documento.
+  Use os dados dos documentos anexados (razão social, CNPJ, endereço, sócios/representantes). O que não estiver nos anexos, deixe como [PREENCHER: …] — nunca invente.
+  Em contrato de locação/cessão de mão de obra, cubra: objeto e escopo, prazo e vigência, valor global, forma de pagamento por medição mensal (boletim de medição, aprovação, prazo de pagamento), reajuste, retenções legais sobre notas fiscais (indique como [CONFERIR COM O FISCAL]), obrigações trabalhistas e previdenciárias da contratada, responsabilidade, confidencialidade/LGPD, rescisão e multa, foro.
+  Depois do documento, em 1–2 frases, lembre de revisar com o jurídico antes de assinar.
 Agora: ${agoraTexto()}.
 
 TAREFA: ${t.titulo}
@@ -76,8 +87,8 @@ ${origem || "(anotação manual, sem conversa de origem)"}
 ${await estiloDoMaiccon()}`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODELO(), max_tokens: 2500, system: await personalizar(sistema),
-        messages: [...(Array.isArray(historico) ? historico.slice(-10) : []), { role: "user", content: String(pergunta) }] }),
+      body: JSON.stringify({ model: MODELO(), max_tokens: 12000, system: await personalizar(sistema),
+        messages: [...anexos, ...(Array.isArray(historico) ? historico.slice(-10) : []), { role: "user", content: String(pergunta) }] }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j?.error?.message || `IA ${r.status}`);

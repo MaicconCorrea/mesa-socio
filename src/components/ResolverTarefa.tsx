@@ -8,9 +8,15 @@ type Dest = { tipo: "conversa"; id: string; nome: string; instancia: string }
 type Msg = { role: "user" | "assistant"; content: string };
 
 const partes = (t: string) => {
-  const out: { tipo: "txt" | "msg"; v: string }[] = [];
-  const re = /\[MENSAGEM\]([\s\S]*?)\[\/MENSAGEM\]/g; let i = 0, m: RegExpExecArray | null;
-  while ((m = re.exec(t))) { if (m.index > i) out.push({ tipo: "txt", v: t.slice(i, m.index) }); out.push({ tipo: "msg", v: m[1].trim() }); i = re.lastIndex; }
+  const out: { tipo: "txt" | "msg" | "doc"; v: string; titulo?: string }[] = [];
+  const re = /\[MENSAGEM\]([\s\S]*?)\[\/MENSAGEM\]|\[DOCUMENTO(?:\s+titulo="([^"]*)")?\]([\s\S]*?)(?:\[\/DOCUMENTO\]|$)/g; let i = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(t))) {
+    if (m.index > i) out.push({ tipo: "txt", v: t.slice(i, m.index) });
+    if (m[1] !== undefined) out.push({ tipo: "msg", v: m[1].trim() });
+    else out.push({ tipo: "doc", v: (m[3] || "").trim(), titulo: m[2] || "Documento" });
+    i = re.lastIndex;
+    if (m[0].length === 0) re.lastIndex++;
+  }
   if (i < t.length) out.push({ tipo: "txt", v: t.slice(i) });
   return out.filter(p => p.v.trim());
 };
@@ -37,6 +43,9 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
   const [contatos, setContatos] = useState<any[]>([]);
   const [instBusca, setInstBusca] = useState("");
   const inputArq = useRef<HTMLInputElement | null>(null);
+  const inputDoc = useRef<HTMLInputElement | null>(null);
+  const [docs, setDocs] = useState<{ id: string; nome: string; tamanho?: number }[]>([]);
+  const [subindo, setSubindo] = useState("");
   const fimChat = useRef<HTMLDivElement | null>(null);
 
   function abrir(foco: "ia" | "enviar") {
@@ -45,6 +54,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
       setNumeros(j.numeros || []); setInstBusca(j.numeros?.[0]?.instancia || "");
       if (j.destino && !destino) setDestino(j.destino); else if (!j.destino) setTrocando(true);
     }).catch(() => {});
+    fetch(`/api/tarefas/docs?tarefaId=${t.id}`).then(r => r.json()).then(j => setDocs(j.docs || [])).catch(() => {});
     if (foco === "ia" && !chat.length) perguntar("Me ajuda a resolver isso agora: qual o caminho mais rápido e o que eu mando pro cliente?");
   }
   async function perguntar(p?: string) {
@@ -61,6 +71,38 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
     return () => clearTimeout(tm);
   }, [busca, trocando]);
 
+  async function subirDocs(lista: FileList | null) {
+    if (!lista?.length) return;
+    for (const f of Array.from(lista)) {
+      setSubindo(`Enviando ${f.name}…`);
+      try {
+        const p = await fetch("/api/tarefas/docs", { method: "POST", body: JSON.stringify({ tarefaId: t.id, etapa: "preparar", nome: f.name }) }).then(r => r.json());
+        if (p.erro) throw new Error(p.erro);
+        const fd = new FormData(); fd.append("cacheControl", "3600"); fd.append("", f);
+        const up = await fetch(p.url, { method: "PUT", body: fd });
+        if (!up.ok) throw new Error(`armazenamento ${up.status}`);
+        const c = await fetch("/api/tarefas/docs", { method: "POST", body: JSON.stringify({ tarefaId: t.id, etapa: "confirmar", caminho: p.caminho, nome: f.name, mime: f.type, tamanho: f.size }) }).then(r => r.json());
+        if (c.erro) throw new Error(c.erro);
+        setDocs(d => [...d, c.doc]);
+      } catch (e: any) { setAviso(`Não anexou ${f.name}: ${e?.message || e}`); }
+    }
+    setSubindo("");
+  }
+  async function tirarDoc(id: string) {
+    await fetch("/api/tarefas/docs", { method: "DELETE", body: JSON.stringify({ id }) });
+    setDocs(d => d.filter(x => x.id !== id));
+  }
+  async function arquivoDe(titulo: string, texto: string, formato: "pdf" | "docx"): Promise<File> {
+    const r = await fetch("/api/documentos/docx", { method: "POST", body: JSON.stringify({ titulo, texto, formato }) });
+    if (!r.ok) throw new Error("não gerou o arquivo");
+    const nome = titulo.replace(/[\\/:*?"<>|]+/g, "");
+    return new File([await r.blob()], `${nome}.${formato}`, { type: formato === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  }
+  async function baixar(titulo: string, texto: string, formato: "pdf" | "docx") {
+    const f = await arquivoDe(titulo, texto, formato);
+    const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+  async function anexarAoEnvio(titulo: string, texto: string, formato: "pdf" | "docx") { const f = await arquivoDe(titulo, texto, formato); setArquivos(a => [...a, f]); }
   async function enviar() {
     if (!destino || (!texto.trim() && !arquivos.length)) return;
     setEnviando(true); setAviso("");
@@ -110,12 +152,30 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
               ? <div key={i} className="small" style={{ alignSelf: "end", background: "var(--navy)", color: "#fff", padding: "6px 10px", borderRadius: 10, justifySelf: "end", maxWidth: "85%" }}>{m.content}</div>
               : <div key={i} style={{ display: "grid", gap: 6 }}>{partes(m.content).map((p, k) => p.tipo === "txt"
                   ? <div key={k} className="small" style={{ whiteSpace: "pre-wrap" }}>{p.v.trim()}</div>
+                  : p.tipo === "doc" ? <div key={k} style={{ background: "#fff", border: "2px solid var(--laranja)", borderRadius: 8, padding: "8px 10px" }}>
+                      <b className="small">📄 {p.titulo}</b>
+                      <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, maxHeight: 260, overflowY: "auto", marginTop: 6, background: "#fafbfe", padding: 8, borderRadius: 6 }}>{p.v}</div>
+                      <div className="acoes" style={{ marginTop: 6 }}>
+                        <button className="mini" onClick={() => baixar(p.titulo || "Documento", p.v, "pdf").catch(e => setAviso(String(e)))}>⬇ Baixar PDF</button>
+                        <button className="mini" onClick={() => baixar(p.titulo || "Documento", p.v, "docx").catch(e => setAviso(String(e)))}>⬇ Baixar Word</button>
+                        <button className="mini sec" onClick={() => anexarAoEnvio(p.titulo || "Documento", p.v, "pdf").catch(e => setAviso(String(e)))}>📎 Anexar PDF ao envio</button>
+                        <button className="mini sec" onClick={() => anexarAoEnvio(p.titulo || "Documento", p.v, "docx").catch(e => setAviso(String(e)))}>📎 Anexar Word ao envio</button>
+                        <button className="mini sec" onClick={() => navigator.clipboard.writeText(p.v)}>📋 Copiar</button>
+                      </div>
+                    </div>
                   : <div key={k} style={{ background: "#fff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "8px 10px" }}>
                       <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5 }}>{p.v}</div>
                       <button className="mini" style={{ marginTop: 6 }} onClick={() => setTexto(p.v)}>Usar esta mensagem ↓</button>
                     </div>)}</div>)}
-            {pensando && <p className="muted small" style={{ margin: 0 }}>Pensando…</p>}
+            {pensando && <p className="muted small" style={{ margin: 0 }}>Pensando… {docs.length ? "(lendo os documentos — um contrato completo pode levar 1 a 2 minutos)" : ""}</p>}
             <div ref={fimChat} />
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+            <button className="mini sec" onClick={() => inputDoc.current?.click()} title="PDF, Word, imagem ou texto — a IA lê">📎 Anexar documento</button>
+            <input ref={inputDoc} type="file" multiple hidden accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,.txt,.csv,.md" onChange={e => { subirDocs(e.target.files); e.target.value = ""; }} />
+            {docs.map(d => <span key={d.id} className="selo" title="tirar" style={{ cursor: "pointer" }} onClick={() => tirarDoc(d.id)}>📄 {d.nome} ✕</span>)}
+            {subindo && <span className="muted small">{subindo}</span>}
+            {!docs.length && !subindo && <span className="muted small">Ex.: contratos sociais das empresas para a IA montar o contrato.</span>}
           </div>
           <div className="acoes" style={{ marginTop: 6 }}>
             <button className="mini sec" disabled={pensando} onClick={() => perguntar("Escreva a resposta pronta para eu mandar ao cliente.")}>✍️ Resposta pro cliente</button>

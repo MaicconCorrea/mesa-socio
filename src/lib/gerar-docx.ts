@@ -1,5 +1,5 @@
 // Texto da IA (títulos com #, listas com -, **negrito**) → arquivo Word (.docx) formatado
-import { AlignmentType, Document, Footer, Packer, PageNumber, Paragraph, TextRun } from "docx";
+import { AlignmentType, BorderStyle, Document, Footer, Packer, PageNumber, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 
 function trechos(linha: string, base: { bold?: boolean; size?: number } = {}) {
   const partes = linha.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
@@ -9,11 +9,27 @@ function trechos(linha: string, base: { bold?: boolean; size?: number } = {}) {
 }
 
 export async function gerarDocx(titulo: string, texto: string): Promise<Buffer> {
-  const paras: Paragraph[] = [];
+  const paras: (Paragraph | Table)[] = [];
   const linhas = texto.replace(/\r/g, "").split("\n");
   let temTitulo = false;
-  for (const bruta of linhas) {
-    const l = bruta.trimEnd();
+  const borda = { style: BorderStyle.SINGLE, size: 4, color: "999999" };
+  for (let idx = 0; idx < linhas.length; idx++) {
+    const l = linhas[idx].trimEnd();
+    if (/^\s*\|.*\|\s*$/.test(l)) { // tabela markdown
+      const rows: string[][] = [];
+      while (idx < linhas.length && /^\s*\|.*\|\s*$/.test(linhas[idx])) {
+        const cel = linhas[idx].trim().slice(1, -1).split("|").map(c => c.trim());
+        if (!cel.every(c => /^:?-{2,}:?$/.test(c))) rows.push(cel);
+        idx++;
+      }
+      idx--;
+      const ncol = Math.max(...rows.map(r => r.length));
+      paras.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: rows.map((r, a) => new TableRow({ children: Array.from({ length: ncol }, (_, b) => new TableCell({
+        borders: { top: borda, bottom: borda, left: borda, right: borda },
+        children: [new Paragraph({ children: trechos(r[b] || "", { bold: a === 0, size: 20 }) })] })) })) }));
+      paras.push(new Paragraph({ text: "" }));
+      continue;
+    }
     if (!l.trim() || /^-{3,}$/.test(l.trim())) { paras.push(new Paragraph({ text: "" })); continue; }
     if (/^#\s+/.test(l)) {
       temTitulo = true;

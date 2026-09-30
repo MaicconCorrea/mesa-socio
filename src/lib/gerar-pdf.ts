@@ -46,9 +46,48 @@ export async function gerarPdf(titulo: string, texto: string): Promise<Buffer> {
     y -= opc.depois || 0;
   }
 
+  // tabela: colunas iguais, texto quebrando dentro da célula
+  function tabela(rows: string[][]) {
+    const ncol = Math.max(...rows.map(r => r.length)), cw = LARG / ncol, tam = 9, alt = tam * 1.35, pad = 4;
+    y -= 4;
+    rows.forEach((r, a) => {
+      const f = a === 0 ? negrito : normal;
+      const cels = Array.from({ length: ncol }, (_, b) => {
+        const ls: string[] = []; let atual = "";
+        for (const w of limpar((r[b] || "").replace(/\*\*/g, "")).split(/\s+/).filter(Boolean)) {
+          const t = atual ? atual + " " + w : w;
+          if (larg(f, t, tam) > cw - pad * 2 && atual) { ls.push(atual); atual = w; } else atual = t;
+        }
+        if (atual) ls.push(atual);
+        return ls.length ? ls : [""];
+      });
+      const h = Math.max(...cels.map(c => c.length)) * alt + pad * 2;
+      if (y - h < MARGEM) novaPagina();
+      cels.forEach((ls, b) => {
+        const x = MARGEM + b * cw;
+        pag.drawRectangle({ x, y: y - h, width: cw, height: h, borderColor: rgb(0.6, 0.6, 0.65), borderWidth: 0.6, color: a === 0 ? rgb(0.95, 0.96, 0.98) : undefined });
+        ls.forEach((t, k) => pag.drawText(t, { x: x + pad, y: y - pad - tam - k * alt, size: tam, font: f, color: rgb(0.1, 0.1, 0.12) }));
+      });
+      y -= h;
+    });
+    y -= 8;
+  }
+
   let temTitulo = false;
-  for (const bruta of texto.replace(/\r/g, "").split("\n")) {
-    const l = bruta.trimEnd();
+  const todas = texto.replace(/\r/g, "").split("\n");
+  for (let idx = 0; idx < todas.length; idx++) {
+    const l = todas[idx].trimEnd();
+    if (/^\s*\|.*\|\s*$/.test(l)) {
+      const rows: string[][] = [];
+      while (idx < todas.length && /^\s*\|.*\|\s*$/.test(todas[idx])) {
+        const cel = todas[idx].trim().slice(1, -1).split("|").map(c => c.trim());
+        if (!cel.every(c => /^:?-{2,}:?$/.test(c))) rows.push(cel);
+        idx++;
+      }
+      idx--;
+      if (rows.length) tabela(rows);
+      continue;
+    }
     if (!l.trim() || /^-{3,}$/.test(l.trim())) { y -= 6; continue; }
     if (/^#\s+/.test(l)) { temTitulo = true; paragrafo(pedacos(l.replace(/^#\s+/, ""), true), 14, { centro: true, antes: 4, depois: 10 }); }
     else if (/^##\s+/.test(l)) paragrafo(pedacos(l.replace(/^##\s+/, ""), true), 11.5, { antes: 10, depois: 4 });

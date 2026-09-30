@@ -7,7 +7,7 @@ import { estiloDoMaiccon } from "@/lib/estilo";
 import { personalizar } from "@/lib/socios";
 import { agoraTexto } from "@/lib/fmt";
 import { meusNumeros } from "@/lib/numeros";
-import { blocosParaIA } from "@/lib/docs";
+import { processarDoc } from "@/lib/docs";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
 export const maxDuration = 300; // documento longo (contrato) leva mais tempo pra IA escrever
@@ -58,37 +58,46 @@ export async function POST(req: NextRequest) {
   if (!key) return NextResponse.json({ erro: "ANTHROPIC_API_KEY não configurada" }, { status: 400 });
   try {
     const { t, origem } = await contexto(tarefaId);
-    const { data: docs } = await db().from("tarefa_docs").select("nome,mime,caminho").eq("tarefa_id", tarefaId).order("criado_em");
-    const anexos = docs?.length ? [
-      { role: "user", content: [...(await blocosParaIA(docs)), { type: "text", text: `Estes são os documentos anexados a esta tarefa (${docs.map((d: any) => d.nome).join(", ")}). Use-os como base.` }] },
-      { role: "assistant", content: "Recebi os documentos e vou usá-los." },
-    ] : [];
-    const sistema = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade e BPO no RJ). Ele quer RESOLVER esta tarefa agora.
-Ajude de forma prática: diga o caminho mais curto, escreva o que ele precisa mandar e, se for o caso, redija o documento/texto pedido (contrato simples, e-mail, orientação ao cliente).
-Formato:
-- Explicação para o Maiccon, curta (máx. 4 frases), quando ajudar.
-- Mensagem pronta para mandar ao cliente SEMPRE entre [MENSAGEM] e [/MENSAGEM], em primeira pessoa, no jeito dele, sem asteriscos.
-- Em imposto, prazo legal ou valor: não invente número; diga "vou confirmar e te retorno" ou sugira mandar pro setor.
-- Quando pedirem um DOCUMENTO (contrato, proposta, declaração, procuração, e-mail formal longo): escreva o documento COMPLETO entre [DOCUMENTO titulo="Nome do documento"] e [/DOCUMENTO].
-  Dentro dele use "# " para o título, "## " para cada cláusula/seção, "- " para itens e **negrito** só em nomes das partes e termos-chave. Nada de comentários seus dentro do documento.
-  Use os dados dos documentos anexados (razão social, CNPJ, endereço, sócios/representantes). O que não estiver nos anexos, deixe como [PREENCHER: …] — nunca invente.
-  Em contrato de locação/cessão de mão de obra, cubra: objeto e escopo, prazo e vigência, valor global, forma de pagamento por medição mensal (boletim de medição, aprovação, prazo de pagamento), reajuste, retenções legais sobre notas fiscais (indique como [CONFERIR COM O FISCAL]), obrigações trabalhistas e previdenciárias da contratada, responsabilidade, confidencialidade/LGPD, rescisão e multa, foro.
-  Depois do documento, em 1–2 frases, lembre de revisar com o jurídico antes de assinar.
-Agora: ${agoraTexto()}.
+    // documentos: usa o texto já lido (lê agora os que ainda não foram lidos)
+    const sb = db();
+    let { data: docs } = await sb.from("tarefa_docs").select("id,nome,mime,caminho,texto,status,paginas,erro").eq("tarefa_id", tarefaId).order("criado_em");
+    for (const d of docs || []) if (d.status !== "lido" && d.status !== "erro") { await processarDoc(sb, d); }
+    if (docs?.some((d: any) => d.status !== "lido" && d.status !== "erro")) ({ data: docs } = await sb.from("tarefa_docs").select("id,nome,mime,caminho,texto,status,paginas,erro").eq("tarefa_id", tarefaId).order("criado_em"));
+    const blocoDocs = (docs || []).map((d: any) => d.status === "lido"
+      ? `<documento nome="${d.nome}"${d.paginas ? ` paginas="${d.paginas}"` : ""}>\n${d.texto}\n</documento>`
+      : `<documento nome="${d.nome}">(NÃO FOI POSSÍVEL LER: ${d.erro || "erro"}. Diga isso ao Maiccon se precisar dele.)</documento>`).join("\n\n");
 
-TAREFA: ${t.titulo}
+    const sistema = `Você é o Claude, assistente de IA trabalhando para o Maiccon, sócio da Outtax (escritório de contabilidade e BPO financeiro no Rio de Janeiro).
+Converse com ele exatamente como no chat do Claude: natural, direto, útil. Ele é o especialista; você executa.
+
+Como trabalhar:
+- Faça o que ele pedir, na hora. Se pedir um documento, ENTREGUE o documento completo nesta resposta — não peça confirmação antes.
+- Use tudo o que estiver nos documentos anexados e no contexto da tarefa. Leia com atenção: razão social, CNPJ, NIRE, endereço, sócios, qualificação (nacionalidade, estado civil, profissão, CPF, RG), administradores.
+- Dado que não existe em lugar nenhum vira [PREENCHER: o que é]. No FINAL, liste em poucas linhas o que ficou para preencher. Pergunte só se for impossível avançar.
+- Nunca diga que leu algo que não está nos documentos. Se um documento não pôde ser lido, avise.
+- Documento para baixar (contrato, proposta, declaração, procuração, parecer, e-mail formal longo): coloque o documento inteiro entre [DOCUMENTO titulo="Nome do documento"] e [/DOCUMENTO]. Dentro: "# " título, "## " seções/cláusulas, "- " itens, **negrito**, e tabelas em markdown (| col | col |) quando fizer sentido (ex.: parcelas). Sem comentários seus dentro do documento.
+- Mensagem curta para ele mandar a alguém (WhatsApp/e-mail): coloque entre [MENSAGEM] e [/MENSAGEM], em primeira pessoa, no jeito dele. Só quando ele pedir ou quando for claramente útil.
+- Tributos (retenções, alíquotas): use a regra geral correta quando souber e marque [CONFERIR COM O FISCAL] quando depender do caso.
+- Ao final de contratos, uma linha lembrando de revisar com o jurídico antes de assinar.
+- Hoje: ${agoraTexto()}.
+
+<tarefa>
+${t.titulo}
 Tipo: ${t.tipo} · Quem: ${t.quem || "-"} · Prazo: ${t.prazo || "sem prazo"}
 Detalhe: ${t.detalhe || "-"}
 Trecho: ${t.trecho || "-"}
+</tarefa>
 
-DE ONDE VEIO:
+<origem>
 ${origem || "(anotação manual, sem conversa de origem)"}
+</origem>
+${blocoDocs ? `\n<documentos_anexados>\n${blocoDocs}\n</documentos_anexados>` : ""}
 
 ${await estiloDoMaiccon()}`;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODELO(), max_tokens: 12000, system: await personalizar(sistema),
-        messages: [...anexos, ...(Array.isArray(historico) ? historico.slice(-10) : []), { role: "user", content: String(pergunta) }] }),
+      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL_IA || MODELO(), max_tokens: 16000, system: await personalizar(sistema),
+        messages: [...(Array.isArray(historico) ? historico.slice(-16) : []), { role: "user", content: String(pergunta) }] }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j?.error?.message || `IA ${r.status}`);

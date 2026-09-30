@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Md from "./Md";
 
 type Dest = { tipo: "conversa"; id: string; nome: string; instancia: string }
   | { tipo: "contato"; numero: string; nome: string; instancia: string }
@@ -44,7 +45,8 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
   const [instBusca, setInstBusca] = useState("");
   const inputArq = useRef<HTMLInputElement | null>(null);
   const inputDoc = useRef<HTMLInputElement | null>(null);
-  const [docs, setDocs] = useState<{ id: string; nome: string; tamanho?: number }[]>([]);
+  const [docs, setDocs] = useState<{ id: string; nome: string; tamanho?: number; status?: string; paginas?: number; erro?: string }[]>([]);
+  const [lido, setLido] = useState<{ nome: string; texto: string } | null>(null);
   const [subindo, setSubindo] = useState("");
   const fimChat = useRef<HTMLDivElement | null>(null);
 
@@ -55,7 +57,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
       if (j.destino && !destino) setDestino(j.destino); else if (!j.destino) setTrocando(true);
     }).catch(() => {});
     fetch(`/api/tarefas/docs?tarefaId=${t.id}`).then(r => r.json()).then(j => setDocs(j.docs || [])).catch(() => {});
-    if (foco === "ia" && !chat.length) perguntar("Me ajuda a resolver isso agora: qual o caminho mais rápido e o que eu mando pro cliente?");
+
   }
   async function perguntar(p?: string) {
     const q = (p ?? pergunta).trim(); if (!q || pensando) return;
@@ -75,18 +77,30 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
     if (!lista?.length) return;
     for (const f of Array.from(lista)) {
       setSubindo(`Enviando ${f.name}…`);
+      const tmp = "tmp" + Date.now();
       try {
         const p = await fetch("/api/tarefas/docs", { method: "POST", body: JSON.stringify({ tarefaId: t.id, etapa: "preparar", nome: f.name }) }).then(r => r.json());
         if (p.erro) throw new Error(p.erro);
         const fd = new FormData(); fd.append("cacheControl", "3600"); fd.append("", f);
         const up = await fetch(p.url, { method: "PUT", body: fd });
         if (!up.ok) throw new Error(`armazenamento ${up.status}`);
+        setSubindo(`Lendo ${f.name}… (PDF escaneado grande pode levar 1–3 minutos)`);
+        setDocs(d => [...d, { id: tmp, nome: f.name, status: "lendo" }]);
         const c = await fetch("/api/tarefas/docs", { method: "POST", body: JSON.stringify({ tarefaId: t.id, etapa: "confirmar", caminho: p.caminho, nome: f.name, mime: f.type, tamanho: f.size }) }).then(r => r.json());
         if (c.erro) throw new Error(c.erro);
-        setDocs(d => [...d, c.doc]);
-      } catch (e: any) { setAviso(`Não anexou ${f.name}: ${e?.message || e}`); }
+        setDocs(d => d.map(x => x.id === tmp ? c.doc : x));
+      } catch (e: any) { setAviso(`Não anexou ${f.name}: ${e?.message || e}`); setDocs(d => d.filter(x => x.id !== tmp)); }
     }
     setSubindo("");
+  }
+  async function reler(id: string) {
+    setDocs(d => d.map(x => x.id === id ? { ...x, status: "lendo" } : x));
+    const c = await fetch("/api/tarefas/docs", { method: "POST", body: JSON.stringify({ tarefaId: t.id, etapa: "reler", docId: id }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (c.doc) setDocs(d => d.map(x => x.id === id ? { ...x, ...c.doc } : x));
+  }
+  async function verLido(id: string) {
+    const j = await fetch(`/api/tarefas/docs?texto=${id}`).then(r => r.json());
+    setLido({ nome: j.nome, texto: j.texto || "(vazio)" });
   }
   async function tirarDoc(id: string) {
     await fetch("/api/tarefas/docs", { method: "DELETE", body: JSON.stringify({ id }) });
@@ -136,8 +150,14 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
     <button className="sec" onClick={() => abrir("enviar")} title="Mandar a solução para o cliente">📤 Enviar ao cliente</button>
     {t.conversa_id && <a className="btn sec" href={`/whatsapp?c=${t.conversa_id}`} style={{ textDecoration: "none" }}>💬 Abrir conversa</a>}
 
+    {lido && <div className="modal-fundo" style={{ zIndex: 200 }} onClick={e => { if (e.target === e.currentTarget) setLido(null); }}>
+      <div className="modal-caixa" style={{ width: 900, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex" }}><b style={{ flex: 1 }}>O que a IA leu de "{lido.nome}"</b><button className="linkbtn" onClick={() => setLido(null)}>fechar</button></div>
+        <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, marginTop: 8 }}>{lido.texto}</div>
+      </div>
+    </div>}
     {aberto && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setAberto(false); }}>
-      <div className="modal-caixa" style={{ width: 760, maxWidth: "96vw", maxHeight: "92vh", overflowY: "auto", display: "grid", gap: 10 }}>
+      <div className="modal-caixa" style={{ width: 1180, maxWidth: "97vw", height: "94vh", maxHeight: "94vh", overflowY: "auto", display: "grid", gap: 10, alignContent: "start" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <b style={{ fontSize: 16, flex: 1 }}>{t.titulo}</b>
           <button className="linkbtn" onClick={() => setAberto(false)}>fechar</button>
@@ -146,15 +166,15 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
         {/* IA */}
         <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 10, background: "#fafbfe" }}>
           <b className="small">🤖 Conversar com a IA</b>
-          <div style={{ maxHeight: 320, overflowY: "auto", display: "grid", gap: 8, marginTop: 6 }}>
-            {!chat.length && <p className="muted small" style={{ margin: 0 }}>A IA já conhece a tarefa e a conversa/e-mail de onde ela veio.</p>}
+          <div style={{ maxHeight: "52vh", minHeight: 160, overflowY: "auto", display: "grid", gap: 10, marginTop: 6, alignContent: "start" }}>
+            {!chat.length && <p className="muted small" style={{ margin: 0 }}>Converse como no Claude. A IA já conhece a tarefa, a conversa/e-mail de onde ela veio e os documentos anexados. Ex.: "gere o contrato de prestação de serviços de 13 meses, R$ 2 milhões, pago por medição mensal".</p>}
             {chat.map((m, i) => m.role === "user"
-              ? <div key={i} className="small" style={{ alignSelf: "end", background: "var(--navy)", color: "#fff", padding: "6px 10px", borderRadius: 10, justifySelf: "end", maxWidth: "85%" }}>{m.content}</div>
+              ? <div key={i} style={{ background: "var(--navy)", color: "#fff", padding: "8px 12px", borderRadius: 10, justifySelf: "end", maxWidth: "80%", whiteSpace: "pre-wrap", fontSize: 13.5 }}>{m.content}</div>
               : <div key={i} style={{ display: "grid", gap: 6 }}>{partes(m.content).map((p, k) => p.tipo === "txt"
-                  ? <div key={k} className="small" style={{ whiteSpace: "pre-wrap" }}>{p.v.trim()}</div>
+                  ? <div key={k}><Md texto={p.v.trim()} /></div>
                   : p.tipo === "doc" ? <div key={k} style={{ background: "#fff", border: "2px solid var(--laranja)", borderRadius: 8, padding: "8px 10px" }}>
                       <b className="small">📄 {p.titulo}</b>
-                      <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, maxHeight: 260, overflowY: "auto", marginTop: 6, background: "#fafbfe", padding: 8, borderRadius: 6 }}>{p.v}</div>
+                      <div style={{ maxHeight: 360, overflowY: "auto", marginTop: 6, background: "#fafbfe", padding: "8px 12px", borderRadius: 6 }}><Md texto={p.v} tamanho={12.5} /></div>
                       <div className="acoes" style={{ marginTop: 6 }}>
                         <button className="mini" onClick={() => baixar(p.titulo || "Documento", p.v, "pdf").catch(e => setAviso(String(e)))}>⬇ Baixar PDF</button>
                         <button className="mini" onClick={() => baixar(p.titulo || "Documento", p.v, "docx").catch(e => setAviso(String(e)))}>⬇ Baixar Word</button>
@@ -167,23 +187,31 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
                       <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5 }}>{p.v}</div>
                       <button className="mini" style={{ marginTop: 6 }} onClick={() => setTexto(p.v)}>Usar esta mensagem ↓</button>
                     </div>)}</div>)}
-            {pensando && <p className="muted small" style={{ margin: 0 }}>Pensando… {docs.length ? "(lendo os documentos — um contrato completo pode levar 1 a 2 minutos)" : ""}</p>}
+            {pensando && <p className="muted small" style={{ margin: 0 }}>Pensando… {docs.length ? "(um documento completo pode levar 1 a 2 minutos)" : ""}</p>}
             <div ref={fimChat} />
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
             <button className="mini sec" onClick={() => inputDoc.current?.click()} title="PDF, Word, imagem ou texto — a IA lê">📎 Anexar documento</button>
             <input ref={inputDoc} type="file" multiple hidden accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,.txt,.csv,.md" onChange={e => { subirDocs(e.target.files); e.target.value = ""; }} />
-            {docs.map(d => <span key={d.id} className="selo" title="tirar" style={{ cursor: "pointer" }} onClick={() => tirarDoc(d.id)}>📄 {d.nome} ✕</span>)}
+            {docs.map(d => <span key={d.id} className="selo" style={{ display: "inline-flex", gap: 6, alignItems: "center", background: d.status === "erro" ? "#fdecec" : d.status === "lido" ? "#e9f7ef" : undefined }}>
+              📄 {d.nome}
+              {d.status === "lendo" && <span className="muted">· lendo…</span>}
+              {d.status === "lido" && <><span style={{ color: "var(--verde)" }}>· ✓ lido{d.paginas ? ` · ${d.paginas} pág.` : ""}</span><button className="linkbtn small" onClick={() => verLido(d.id)}>ver o que foi lido</button></>}
+              {d.status === "erro" && <><span style={{ color: "var(--vermelho)" }} title={d.erro}>· ⚠️ não consegui ler</span><button className="linkbtn small" onClick={() => reler(d.id)}>tentar de novo</button></>}
+              <button className="linkbtn small" title="tirar" onClick={() => tirarDoc(d.id)}>✕</button>
+            </span>)}
             {subindo && <span className="muted small">{subindo}</span>}
             {!docs.length && !subindo && <span className="muted small">Ex.: contratos sociais das empresas para a IA montar o contrato.</span>}
           </div>
           <div className="acoes" style={{ marginTop: 6 }}>
+            <button className="mini sec" disabled={pensando} onClick={() => perguntar("Qual o caminho mais rápido pra resolver isso?")}>💡 Como resolvo?</button>
             <button className="mini sec" disabled={pensando} onClick={() => perguntar("Escreva a resposta pronta para eu mandar ao cliente.")}>✍️ Resposta pro cliente</button>
             <button className="mini sec" disabled={pensando} onClick={() => perguntar("Faça um rascunho do documento/texto que eu preciso entregar.")}>📄 Rascunho do documento</button>
             <button className="mini sec" disabled={pensando} onClick={() => perguntar("Isso deveria ir pra algum setor? Qual e o que eu escrevo no chamado?")}>➡️ É com qual setor?</button>
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            <input value={pergunta} onChange={e => setPergunta(e.target.value)} placeholder="Pergunte ou peça algo sobre esta tarefa…" onKeyDown={e => { if (e.key === "Enter") perguntar(); }} />
+            <textarea value={pergunta} onChange={e => setPergunta(e.target.value)} rows={3} placeholder="Escreva como no Claude… (Enter envia · Shift+Enter quebra linha)"
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); perguntar(); } }} style={{ flex: 1 }} />
             <button onClick={() => perguntar()} disabled={pensando || !pergunta.trim()}>Enviar</button>
           </div>
         </div>

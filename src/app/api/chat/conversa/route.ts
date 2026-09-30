@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const [{ data: conversa }, { data: desc }, { data: tarefas }] = await Promise.all([
     sb.from("conversas").select("*").eq("id", id).single(),
     sb.from("mensagens")
-      .select("id,msg_id,de_mim,autor,texto,enviada_em,me_citou,tipo,midia_mime,midia_nome,tem_midia,citada_texto,transcricao,transcricao_erro,apagada")
+      .select("id,msg_id,de_mim,autor,texto,enviada_em,me_citou,tipo,midia_mime,midia_nome,tem_midia,citada_texto,transcricao,transcricao_erro,apagada,editada")
       .eq("conversa_id", id).eq("oculta", false).order("enviada_em", { ascending: false }).limit(200),
     sb.from("tarefas").select("*").eq("conversa_id", id).eq("status", "aberta").order("prazo", { ascending: true, nullsFirst: false }),
   ]);

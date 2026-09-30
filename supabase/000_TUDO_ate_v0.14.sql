@@ -216,3 +216,5 @@ create table if not exists tarefa_docs (
 );
 create index if not exists tarefa_docs_tarefa_idx on tarefa_docs (dono, tarefa_id);
 alter table tarefa_docs enable row level security;
+-- Mesa do Sócio · v0.14.3 · mensagem editada
+alter table mensagens add column if not exists editada boolean not null default false;

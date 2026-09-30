@@ -293,3 +293,11 @@ export async function participantesGrupo(inst: string, groupJid: string): Promis
   return lista.map(p => ({ id: String(p.id), nome: p.name || p.notify || p.pushName || "", fone: p.phoneNumber || p.jid || "" }))
     .map(p => ({ id: p.id, nome: p.nome || (p.fone ? String(p.fone).split("@")[0] : p.id.split("@")[0]) }));
 }
+
+// Editar mensagem de texto minha (o WhatsApp deixa até 15 minutos depois de enviar)
+export async function editarMensagem(inst: string, jid: string, msgId: string, texto: string) {
+  const r = await evo(`/chat/updateMessage/${enc(inst)}`, {
+    method: "POST", body: JSON.stringify({ number: numeroEnvio(jid), key: { remoteJid: jid, fromMe: true, id: msgId }, text: texto }),
+  });
+  if (!r.ok) throw new Error(`Não consegui editar no WhatsApp (${r.status}): ${JSON.stringify(r.json).slice(0, 160)}`);
+}

@@ -9,7 +9,7 @@ type Conversa = {
   ultima_msg_em: string | null; ultima_msg_de_mim: boolean | null; ultima_msg_texto: string | null;
   nao_lidas: number; precisa_resposta: boolean; sem_retorno: boolean; resumo: string | null; foto_url?: string | null;
 };
-type Msg = { apagada?: boolean;
+type Msg = { apagada?: boolean; editada?: boolean;
   id: string; msg_id: string; de_mim: boolean; autor: string | null; texto: string | null; enviada_em: string;
   me_citou: boolean; tipo: string | null; midia_mime: string | null; midia_nome: string | null; tem_midia: boolean; citada_texto?: string | null; transcricao?: string | null; transcricao_erro?: string | null;
 };
@@ -47,6 +47,7 @@ export default function ChatApp() {
   const [nomesCx, setNomesCx] = useState<Record<string, string>>({});
   const instRef = useRef<string | null>(null);
   const [apagando, setApagando] = useState<any | null>(null);
+  const [editando, setEditando] = useState<{ m: any; texto: string } | null>(null);
   const [encaminhando, setEncaminhando] = useState<{ busca: string; destino: any | null; numero: string; instancia: string } | null>(null);
   const [encaminhandoAgora, setEncaminhandoAgora] = useState(false);
   const [contatosEnc, setContatosEnc] = useState<any[]>([]);
@@ -462,6 +463,18 @@ export default function ChatApp() {
     setAviso(`↪ ${j.enviadas} mensagem(ns) encaminhada(s) para ${j.destino?.nome || "o destino"}.` + (j.falhas?.length ? ` Não foram: ${j.falhas.join("; ")}` : ""));
     carregarLista();
   }
+  const podeEditar = (m: any) => m.de_mim && !m.apagada && !m.tem_midia && !String(m.id).startsWith("tmp-") &&
+    (ativo?.instancia === "gchat" || Date.now() - new Date(m.enviada_em).getTime() < 15 * 60 * 1000);
+  async function salvarEdicao() {
+    if (!editando) return;
+    const { m, texto: novo } = editando;
+    if (!novo.trim() || novo.trim() === m.texto) { setEditando(null); return; }
+    setMsgs(ms => (ms || []).map(x => x.id === m.id ? { ...x, texto: novo.trim(), editada: true } : x)); // já mostra editada
+    setEditando(null);
+    const j = await fetch("/api/chat/editar", { method: "POST", body: JSON.stringify({ mensagemId: m.id, texto: novo }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { alert(j.erro); }
+    if (ativoId) carregarConversa(ativoId);
+  }
   async function apagarMsg() {
     const m = apagando; setApagando(null); if (!m) return;
     const j = await fetch("/api/chat/apagar", { method: "POST", body: JSON.stringify({ mensagemId: m.id }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
@@ -641,7 +654,8 @@ export default function ChatApp() {
                       )}
                       {!m.apagada && m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
                       {!m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{txt}</div> : null}
-                      <span className="qd">{(m as any).enviandoAgora ? "⏳ enviando…" : hora(m.enviada_em)} {!m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button>}
+                      <span className="qd">{(m as any).enviandoAgora ? "⏳ enviando…" : hora(m.enviada_em)}{m.editada && !m.apagada ? " · editada" : ""} {!m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button>}
+                        {podeEditar(m) && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setEditando({ m, texto: m.texto || "" })} title={ativo.instancia === "gchat" ? "Editar mensagem" : "Editar (o WhatsApp deixa até 15 min)"}>✏️ editar</button>}
                         {m.de_mim && !m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setApagando(m)} title="Apagar para todos">🗑 apagar</button>}</span>
                     </div>
                   );
@@ -816,6 +830,18 @@ export default function ChatApp() {
             <span className="small muted" style={{ flex: 1 }}>{encaminhando.destino ? `Para: ${encaminhando.destino.nome}` : encaminhando.numero ? `Para: ${(encaminhando as any).rotulo || encaminhando.numero} (pelo ${rotuloCx(encaminhando.instancia)})` : ""}</span>
             <button className="sec" onClick={() => setEncaminhando(null)}>Cancelar</button>
             <button onClick={encaminhar} disabled={encaminhandoAgora || (!encaminhando.destino && !encaminhando.numero.trim())}>{encaminhandoAgora ? "Enviando…" : "Encaminhar"}</button>
+          </div>
+        </div>
+      </div>}
+      {editando && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setEditando(null); }}>
+        <div className="modal-caixa" style={{ width: 480, display: "grid", gap: 8 }}>
+          <b style={{ fontSize: 16 }}>✏️ Editar mensagem</b>
+          <textarea value={editando.texto} onChange={e => setEditando({ ...editando, texto: e.target.value })} rows={4} autoFocus
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); salvarEdicao(); } if (e.key === "Escape") setEditando(null); }} />
+          <span className="muted small">A mensagem muda também {ativo?.instancia === "gchat" ? "no Google Chat de todos" : "no WhatsApp de quem recebeu (aparece \"Editada\")"}.</span>
+          <div className="acoes" style={{ justifyContent: "flex-end" }}>
+            <button className="sec" onClick={() => setEditando(null)}>Cancelar</button>
+            <button onClick={salvarEdicao} disabled={!editando.texto.trim()}>Salvar</button>
           </div>
         </div>
       </div>}

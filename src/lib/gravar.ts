@@ -83,7 +83,12 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
   jid = await resolverLid(sb, instancia, jid);
 
   // alguém apagou uma mensagem "para todos" → marca como apagada
-  const prot = m.message?.protocolMessage;
+  const prot = m.message?.protocolMessage || m.message?.editedMessage?.message?.protocolMessage;
+  if (prot && (prot.type === 14 || prot.type === "MESSAGE_EDIT") && prot.key?.id) {
+    const novo = extrairTexto(prot.editedMessage);
+    if (novo) await sb.from("mensagens").update({ texto: novo, editada: true }).eq("msg_id", prot.key.id);
+    return false;
+  }
   if (prot && (prot.type === 0 || prot.type === "REVOKE") && prot.key?.id) {
     await sb.from("mensagens").update({ apagada: true }).eq("msg_id", prot.key.id);
     return false;

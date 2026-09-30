@@ -133,6 +133,8 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
   if (!ins?.length) {
     // já existia (gravada antes): acerta nome de quem mandou e o anexo
     const upd: any = { participante: m.sender?.name || null, ...(citada ? { citada_texto: citada } : {}) };
+    const foiEditada = m.lastUpdateTime && m.createTime && new Date(m.lastUpdateTime).getTime() - new Date(m.createTime).getTime() > 2000;
+    if (foiEditada && !anexo && texto) { upd.texto = texto.slice(0, 4000); upd.editada = true; }
     if (!deMim && !/^Contato/.test(autor)) upd.autor = autor;
     if (anexo && midia.midia_ref) Object.assign(upd, midia, { texto: texto.slice(0, 4000) });
     if (Object.keys(upd).length) await sb.from("mensagens").update(upd).eq("conversa_id", conv.id).eq("msg_id", m.name);
@@ -298,4 +300,9 @@ async function textoCitado(sb: any, nome: string): Promise<string> {
   out = out.slice(0, 300);
   citadas.set(nome, out);
   return out;
+}
+
+// Editar mensagem minha no Google Chat
+export async function editarMensagemChat(nomeMensagem: string, texto: string) {
+  await api(ESCOPOS.chatMensagens, `/${nomeMensagem}?updateMask=text`, { method: "PATCH", body: JSON.stringify({ text: texto }) });
 }

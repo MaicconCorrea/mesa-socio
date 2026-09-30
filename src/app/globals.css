@@ -441,3 +441,29 @@ button.perigo{background:#fff;color:var(--vermelho);border:1px solid var(--line)
 .visor-seta.esq{left:14px}.visor-seta.dir{right:14px}
 .visor-legenda{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,.45);padding:6px 14px;border-radius:8px;font-size:13.5px;max-width:80%;text-align:center}
 @media (max-width:680px){.visor-fundo{padding:56px 8px 48px}.visor-seta{width:38px;height:38px;font-size:22px}}
+
+/* ===== v0.12.1 · chat se adapta à largura da tela ===== */
+.dg-col3{min-width:0}
+.dg-conv-cab{flex-wrap:nowrap}
+.dg-conv-cab .conv-info{flex:1;min-width:0}
+.dg-conv-cab .conv-nome{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+.dg-conv-cab .conv-meta{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow:hidden}
+.dg-conv-cab .acoes{flex-wrap:nowrap;flex-shrink:0}
+.dg-topo{row-gap:8px}
+/* telas até 1700px: o Assistente vira painel que abre por cima (botão 🤖 IA) */
+@media (max-width:1700px){
+  .dg-col4{display:none}
+  .dg-col4.aberta{display:block;position:absolute;right:0;top:0;bottom:0;z-index:6;box-shadow:-8px 0 24px rgba(0,0,0,.14)}
+  .dg-col2{width:300px}
+}
+/* telas até 1450px: filtros e lista mais estreitos */
+@media (max-width:1450px){
+  .dg-col1{width:160px}
+  .dg-col1 .dg-filtro{font-size:12.5px;padding:7px 10px}
+  .dg-col2{width:260px}
+  .dg-conv-cab .acoes .sec{padding:6px 9px}
+}
+/* telas até 1250px: botões do cabeçalho só com ícone */
+@media (max-width:1250px){
+  .dg-conv-cab .acoes .rot{display:none}
+}

@@ -480,20 +480,20 @@ export default function ChatApp() {
             <>
               <div className="dg-conv-cab">
                 <button className="dg-voltar" onClick={() => setViewMobile("lista")}>← Conversas</button>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <b>{ativo.is_grupo ? "👥 " : ""}{ativo.nome}</b>
-                  <div className="muted small" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <div className="conv-info">
+                  <b className="conv-nome" title={ativo.nome}>{ativo.is_grupo ? "👥 " : ""}{ativo.nome}</b>
+                  <div className="muted small conv-meta">
                     <span className={cx(ativo.instancia)}>{rotuloCx(ativo.instancia)}</span>
                     <span>{MODOS[ativo.modo] || ativo.modo}</span>
-                    {!ativo.is_grupo && <span>· {ativo.jid?.split("@")[0]}</span>}
+                    {!ativo.is_grupo && ativo.instancia !== "gchat" && <span>· {ativo.jid?.split("@")[0]}</span>}
                   </div>
                 </div>
                 <div className="acoes">
                   <select value={ativo.modo} onChange={e => mudarModo(e.target.value)} style={{ width: "auto", fontSize: 12.5, padding: "5px 8px" }} title="Modo da conversa">
                     {Object.entries(MODOS).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
                   </select>
-                  <button className={selecionando ? "" : "sec"} onClick={() => { setSelecionando(v => !v); setSel(new Set()); }} title="Selecionar mensagens para a IA">☑️ {selecionando ? "Selecionando" : "Selecionar"}</button>
-                  <button className="sec" onClick={() => setMostrarIA(v => !v)}>🤖 IA</button>
+                  <button className={selecionando ? "" : "sec"} onClick={() => { setSelecionando(v => !v); setSel(new Set()); }} title="Selecionar mensagens para a IA">☑️<span className="rot"> {selecionando ? "Selecionando" : "Selecionar"}</span></button>
+                  <button className={mostrarIA ? "" : "sec"} onClick={() => setMostrarIA(v => !v)} title="Assistente (resumo, tarefas, conversar com a IA)">🤖<span className="rot"> IA</span></button>
                 </div>
               </div>
 

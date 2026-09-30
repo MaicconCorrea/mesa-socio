@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MandarSetor from "@/components/MandarSetor";
 import BolhaIA from "@/components/BolhaIA";
 import CorpoEmail from "@/components/CorpoEmail";
+import TarefaDeEmail from "@/components/TarefaDeEmail";
 
 type Th = { id: string; assunto: string; de: string; deEmail: string; quando: string; snippet: string; naoLido: boolean; temAnexo: boolean; mensagens: number; ultimaMinha: boolean; automatico: boolean;
   controle: { status: string; resumo: string | null; esperando: boolean } | null };
@@ -42,6 +43,7 @@ export default function EmailApp() {
   const [visor, setVisor] = useState<Anexo | null>(null);
   const [mostrarIA, setMostrarIA] = useState(false);
   const [setor, setSetor] = useState(false);
+  const [tarefaAberta, setTarefaAberta] = useState(false);
   const [viewMobile, setViewMobile] = useState<"atendentes" | "lista" | "conversa">("lista");
   const inputArq = useRef<HTMLInputElement | null>(null);
 
@@ -202,6 +204,7 @@ export default function EmailApp() {
                   <button className="mini sec" onClick={() => acao("arquivar")}>Arquivar</button>
                   <button className="mini sec" onClick={() => acao("nao_lido")}>Não lido</button>
                   <button className="mini sec" onClick={() => acao("ignorar")} title="Não é pra mim / não precisa resposta">Ignorar</button>
+                  <button className="mini" onClick={() => setTarefaAberta(true)} title="Vira tarefa com prazo">📌 Tarefa</button>
                   <button className="mini" onClick={() => setSetor(true)} title="Abre chamado no Acessórias">➡️ Setor</button>
                   <button className="mini sec" onClick={() => setMostrarIA(v => !v)}>🤖 IA</button>
                 </div>
@@ -263,6 +266,7 @@ export default function EmailApp() {
         )}
       </div>
 
+      {tarefaAberta && aberta && <TarefaDeEmail threadId={aberta.id} onFechar={(m) => { setTarefaAberta(false); if (m) { setAviso(m); abrir(aberta.id); } }} />}
       {setor && aberta && <MandarSetor threadId={aberta.id}
         anexosEmail={aberta.mensagens.flatMap(m => m.anexos).map(a => ({ chave: `${a.msgId}|${a.attId}|${a.nome}|${a.mime}`, nome: a.nome }))}
         onFechar={(msg) => { setSetor(false); if (msg) setAviso(msg); }} />}

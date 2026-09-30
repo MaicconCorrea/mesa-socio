@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import EmailRapido from "./EmailRapido";
+import TarefaDeEmail from "./TarefaDeEmail";
 
 const ha = (s: string) => { const m = Math.round((Date.now() - new Date(s).getTime()) / 60000); return m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} dia(s)`; };
 
@@ -9,6 +10,7 @@ const ha = (s: string) => { const m = Math.round((Date.now() - new Date(s).getTi
 export default function EmailsEsperando({ emails }: { emails: any[] }) {
   const [lista, setLista] = useState(emails);
   const [aberto, setAberto] = useState<string | null>(null);
+  const [tarefa, setTarefa] = useState<string | null>(null);
   const [aviso, setAviso] = useState("");
   const router = useRouter();
   async function acao(id: string, a: string) {
@@ -27,12 +29,14 @@ export default function EmailsEsperando({ emails }: { emails: any[] }) {
         {e.resumo ? <div className="trecho" style={{ fontStyle: "normal", ...(e.resumo.includes("⚠️") ? { background: "#fdecec", color: "var(--vermelho)" } : {}) }}>🤖 {e.resumo}</div> : null}
         <div className="acoes">
           <button className="ok" onClick={() => setAberto(e.thread_id)}>↩ Responder</button>
+          <button className="sec" onClick={() => setTarefa(e.thread_id)} title="Vira tarefa com prazo">📌 Gerar tarefa</button>
           <button className="sec" onClick={() => acao(e.thread_id, "resolvido")} title="Tira da lista e marca como lido">✓ Resolvido</button>
           <button className="sec" onClick={() => acao(e.thread_id, "lido")} title="Marca como lido no Gmail (continua na lista)">Lido</button>
           <button className="perigo" onClick={() => acao(e.thread_id, "ignorar")} title="Não precisa de resposta">Ignorar</button>
         </div>
       </div>
     ))}
+    {tarefa && <TarefaDeEmail threadId={tarefa} onFechar={(m) => { if (m) { setAviso(m); setLista(l => l.filter(x => x.thread_id !== tarefa)); router.refresh(); } setTarefa(null); }} />}
     {aberto && <EmailRapido threadId={aberto} onFechar={(m) => { if (m) { setLista(l => l.filter(x => x.thread_id !== aberto)); setAviso(m); router.refresh(); } setAberto(null); }} />}
   </>;
 }

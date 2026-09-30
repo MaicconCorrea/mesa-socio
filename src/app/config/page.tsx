@@ -20,7 +20,7 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
 
   const testar = async (esc: string) => { try { await tokenGoogle(esc); return "ok"; } catch (e: any) { return String(e?.message ?? e); } };
   const g = googleConfigurado() ? { gmail: await testar(ESCOPOS.gmail), agenda: await testar(ESCOPOS.agenda), drive: await testar(ESCOPOS.drive),
-    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio) } : null;
+    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio), usuarios: await testar(ESCOPOS.usuarios), grupos: await testar(ESCOPOS.grupos) } : null;
 
   const inicioMes = `${hojeISO().slice(0, 7)}-01T00:00:00-03:00`;
   const { data: uso } = await db().from("ia_uso").select("tokens_in,tokens_out").gte("em", inicioMes);
@@ -83,6 +83,8 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
               <tr><td><b>Drive (reuniões)</b></td><td>{g.drive === "ok" ? "🟢 funcionando" : `🔴 ${g.drive}`}</td></tr>
               <tr><td><b>Google Chat</b></td><td>{g.chat === "ok" ? "🟢 autorizado" : `🔴 ${g.chat}`}</td></tr>
               <tr><td><b>Nomes (diretório)</b></td><td>{g.diretorio === "ok" ? "🟢 autorizado" : `🔴 ${g.diretorio}`}</td></tr>
+              <tr><td><b>Nomes (usuários do Workspace)</b></td><td>{g.usuarios === "ok" ? "🟢 autorizado" : `🔴 ${g.usuarios} — escopo admin.directory.user.readonly`}</td></tr>
+              <tr><td><b>Grupos (setores)</b></td><td>{g.grupos === "ok" ? "🟢 autorizado" : `🔴 ${g.grupos}`}</td></tr>
             </tbody>
           </table>
         )}

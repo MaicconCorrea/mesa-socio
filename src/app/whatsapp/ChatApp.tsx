@@ -370,6 +370,14 @@ export default function ChatApp() {
     }
     setTimeout(() => setSincronizando(""), 12000);
   }
+  async function corrigirGchat() {
+    setSincronizando("Relendo 30 dias do Google Chat (pode levar 1–2 min)…");
+    const j = await fetch("/api/chat/corrigir-gchat", { method: "POST" }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) setSincronizando("Erro: " + j.erro);
+    else setSincronizando(j.nomesFuncionando ? `Pronto: ${j.espacos} espaço(s) relidos. Nomes e anexos acertados.` : `Anexos relidos, mas o Google ainda recusa os NOMES: ${j.erroNome || "sem detalhe"} — veja Configuração → Google.`);
+    carregarLista(); if (ativoId) carregarConversa(ativoId, true);
+    setTimeout(() => setSincronizando(""), 20000);
+  }
   async function criarNova() {
     setAviso("");
     const j = await fetch("/api/chat/nova", { method: "POST", body: JSON.stringify(nova) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
@@ -406,6 +414,7 @@ export default function ChatApp() {
         <div className="acoes" style={{ marginLeft: "auto" }}>
           <button onClick={() => { setNova(n => ({ ...n, instancia: n.instancia || conexoes.find(c => c !== "gchat") || "" })); setModalNova(true); }}>+ Nova conversa</button>
           <button className="sec" onClick={sincronizar} title="Traz pro painel as conversas dos últimos 90 dias do celular">🔄 Sincronizar conversas</button>
+          {conexao === "gchat" && <button className="sec" onClick={corrigirGchat} title="Relê 30 dias do Google Chat e acerta nomes e anexos">🛠️ Corrigir Google Chat</button>}
           <button className="sec" onClick={alternarAvisos} title="Som e notificação quando chegar mensagem">{avisos ? "🔔 Avisos ligados" : "🔕 Ligar avisos"}</button>
         </div>
       </div>

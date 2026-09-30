@@ -23,20 +23,23 @@ async function api(escopo: string, caminho: string, init: RequestInit = {}) {
 
 // ---- nomes das pessoas (users/123 → "Fulano") ----
 const nomes = new Map<string, { nome: string; email: string; achou: boolean }>();
+export let ultimoErroNome = "";
 export async function pessoa(userName: string): Promise<{ nome: string; email: string; achou: boolean }> {
   if (!userName) return { nome: "Contato", email: "", achou: false };
   if (nomes.has(userName)) return nomes.get(userName)!;
   const id = userName.replace("users/", "");
   let out = { nome: "Contato externo", email: "", achou: false };
-  try { // 1) People API (diretório do domínio)
-    const r = await fetch(`https://people.googleapis.com/v1/people/${id}?personFields=names,emailAddresses`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.diretorio)}` } });
-    if (r.ok) { const j = await r.json(); if (j.names?.[0]?.displayName) out = { nome: j.names[0].displayName, email: (j.emailAddresses?.[0]?.value || "").toLowerCase(), achou: true }; }
-  } catch { /* tenta o próximo */ }
-  if (!out.achou) try { // 2) Admin SDK (usuários do Workspace)
-    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}?viewType=domain_public`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+  try { // 1) Admin SDK (usuários do Workspace da Outtax)
+    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}?projection=basic`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
     if (r.ok) { const j = await r.json(); if (j.name?.fullName) out = { nome: j.name.fullName, email: String(j.primaryEmail || "").toLowerCase(), achou: true }; }
+    else ultimoErroNome = `Admin SDK ${r.status}: ${(await r.text()).slice(0, 160)}`;
+  } catch (e: any) { ultimoErroNome = String(e?.message ?? e); }
+  if (!out.achou) try { // 2) People API (diretório)
+    const r = await fetch(`https://people.googleapis.com/v1/people/${id}?personFields=names,emailAddresses&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.diretorio)}` } });
+    if (r.ok) { const j = await r.json(); if (j.names?.[0]?.displayName) out = { nome: j.names[0].displayName, email: (j.emailAddresses?.[0]?.value || "").toLowerCase(), achou: true }; }
+    else if (!ultimoErroNome) ultimoErroNome = `People ${r.status}: ${(await r.text()).slice(0, 160)}`;
   } catch { /* sem nome */ }
-  nomes.set(userName, out);
+  if (out.achou) nomes.set(userName, out); // só guarda quando achou (pra tentar de novo depois)
   return out;
 }
 
@@ -50,7 +53,7 @@ async function corrigirNomes(sb: any) {
   }
   const { data: cs } = await sb.from("conversas").select("id,jid,nome,is_grupo").eq("instancia", GCHAT);
   for (const c of cs || []) {
-    if (/^\d{10,}/.test(c.nome || "") || /Contato externo|^users\//.test(c.nome || "")) {
+    if (/^\d{10,}/.test(c.nome || "") || /Contato externo|^users\/|, Contato/.test(c.nome || "")) {
       const nome = await nomeDoEspaco({ name: c.jid }, (await lerConfig() as any).chat_meu_id || null).catch(() => null);
       if (nome && !/^\d{10,}/.test(nome)) await sb.from("conversas").update({ nome }).eq("id", c.id);
     }
@@ -114,8 +117,11 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
     me_citou: meCitou, ...midia, citada_texto: m.quotedMessageMetadata ? "[mensagem citada]" : null,
   }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true }).select("id");
   if (!ins?.length) {
-    // já existia: completa anexo e nome (mensagens gravadas antes da v0.10)
-    if (anexo) await sb.from("mensagens").update({ ...midia, texto: texto.slice(0, 4000) }).eq("conversa_id", conv.id).eq("msg_id", m.name).is("midia_ref", null);
+    // já existia (gravada antes): acerta nome de quem mandou e o anexo
+    const upd: any = {};
+    if (!deMim && !/^Contato/.test(autor)) upd.autor = autor;
+    if (anexo && midia.midia_ref) Object.assign(upd, midia, { texto: texto.slice(0, 4000) });
+    if (Object.keys(upd).length) await sb.from("mensagens").update(upd).eq("conversa_id", conv.id).eq("msg_id", m.name);
     return false;
   }
   const upd: any = {};
@@ -138,7 +144,7 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
 }
 
 // Sincroniza espaços com atividade recente (cron a cada 2 min e botão)
-export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: string; historico?: boolean } = {}) {
+export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: string; historico?: boolean; forcar?: boolean } = {}) {
   const sb = db();
   const espacos = await listarEspacos();
   const eu = await meuId(espacos);
@@ -151,7 +157,8 @@ export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: 
     const ativo = e.lastActiveTime ? new Date(e.lastActiveTime).getTime() : 0;
     let conv: any = porJid.get(e.name);
     if (!conv && ativo < limite && !opcoes.espaco) continue;
-    if (conv && conv.ultima_msg_em && ativo && ativo <= new Date(conv.ultima_msg_em).getTime() + 1000 && !opcoes.espaco) continue; // nada novo
+    if (!opcoes.forcar && conv && conv.ultima_msg_em && ativo && ativo <= new Date(conv.ultima_msg_em).getTime() + 1000 && !opcoes.espaco) continue; // nada novo
+    if (opcoes.forcar && ativo && ativo < limite && conv) continue;
     if (conv?.modo === "ignorada") continue;
     if (!conv) {
       const isGrupo = e.spaceType !== "DIRECT_MESSAGE";
@@ -159,11 +166,11 @@ export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: 
         { onConflict: "instancia,jid" }).select("*").single();
       conv = data; novas++;
     }
-    const desde = conv.ultima_msg_em && !opcoes.historico ? new Date(new Date(conv.ultima_msg_em).getTime() - 1000).toISOString() : new Date(limite).toISOString();
+    const desde = conv.ultima_msg_em && !opcoes.historico && !opcoes.forcar ? new Date(new Date(conv.ultima_msg_em).getTime() - 1000).toISOString() : new Date(limite).toISOString();
     const q = new URLSearchParams({ pageSize: "100", orderBy: "createTime asc", filter: `createTime > "${desde}"` });
     const j = await api(ESCOPOS.chatMensagens, `/${e.name}/messages?${q}`).catch(() => null);
     const primeiraVez = !porJid.has(e.name);
-    for (const m of j?.messages || []) if (await gravar(sb, conv, m, eu, primeiraVez || !!opcoes.historico)) mensagens++;
+    for (const m of j?.messages || []) if (await gravar(sb, conv, m, eu, primeiraVez || !!opcoes.historico || !!opcoes.forcar)) mensagens++;
   }
   if (!opcoes.espaco) await corrigirNomes(sb).catch(() => {});
   return { espacos: espacos.length, novas, mensagens };

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type R = { id: string; titulo: string; data: string | null; link: string | null; origem: string; resumo: string | null; decisoes: string[] | null; participantes: string[] | null; analisada_em: string | null; ia_erro: string | null;
   setor?: string | null; autor_nome?: string | null; tarefas_equipe?: { quem: string; titulo: string; prazo: string | null }[] | null };
-const SETOR_NOME: Record<string, string> = { DP: "DP", CONTABIL: "Contábil", BPO: "BPO", FISCAL: "Fiscal", LEGALIZACAO: "Legalização", FINANCEIRO: "Financeiro", SOCIOS: "Sócios" };
+const SETOR_NOME: Record<string, string> = { DP: "DP", CONTABIL: "Contábil", BPO: "BPO", FISCAL: "Fiscal", LEGALIZACAO: "Legalização", FINANCEIRO: "Financeiro", ATENDIMENTO: "Atendimento", SOCIOS: "Sócios" };
 const dt = (s?: string | null) => s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 

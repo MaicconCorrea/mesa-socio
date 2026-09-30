@@ -8,6 +8,8 @@ export const SETORES: Record<string, { codigo: string; nome: string }> = {
   "fiscal@outtax.com.br": { codigo: "FISCAL", nome: "Fiscal" },
   "legalizacao@outtax.com.br": { codigo: "LEGALIZACAO", nome: "Legalização" },
   "financas@outtax.com.br": { codigo: "FINANCEIRO", nome: "Financeiro Interno" },
+  // Célula de Entrada (atendimento). Troque o e-mail do grupo aqui se o time estiver em outro grupo.
+  [(process.env.GRUPO_ATENDIMENTO || "celula-entrada@outtax.com.br").toLowerCase()]: { codigo: "ATENDIMENTO", nome: "Atendimento (Célula de Entrada)" },
 };
 export const NOME_SETOR: Record<string, string> = Object.fromEntries(Object.values(SETORES).map(s => [s.codigo, s.nome]).concat([["SOCIOS", "Sócios (só eu)"]]));
 const socios = () => (process.env.SOCIOS || "maiccon@outtax.com.br,marcos@outtax.com.br").split(",").map(s => s.trim().toLowerCase());

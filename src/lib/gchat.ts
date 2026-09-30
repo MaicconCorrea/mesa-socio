@@ -65,6 +65,10 @@ async function meuId(espacos: any[]): Promise<string | null> {
   const cfg: any = await lerConfig();
   if (cfg.chat_meu_id) return cfg.chat_meu_id;
   const eu = minhaConta();
+  try { // o id do Chat é o mesmo id do usuário no Workspace
+    const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(eu)}?projection=basic`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+    if (r.ok) { const j = await r.json(); if (j.id) { await gravarConfig({ chat_meu_id: `users/${j.id}` } as any); return `users/${j.id}`; } }
+  } catch { /* tenta pelos membros */ }
   for (const e of espacos.filter(x => x.spaceType === "DIRECT_MESSAGE").slice(0, 5)) {
     const j = await api(ESCOPOS.chatMembros, `/${e.name}/members?pageSize=10`).catch(() => null);
     for (const m of j?.memberships || []) {
@@ -80,8 +84,9 @@ async function nomeDoEspaco(e: any, eu: string | null): Promise<string> {
   if (e.displayName) return e.displayName;
   const j = await api(ESCOPOS.chatMembros, `/${e.name}/members?pageSize=10`).catch(() => null);
   const outros = (j?.memberships || []).filter((m: any) => m.member?.type === "HUMAN" && m.member?.name !== eu);
-  const ns = await Promise.all(outros.slice(0, 3).map((m: any) => pessoa(m.member.name)));
-  return ns.map(n => n.nome).join(", ") || "Conversa do Chat";
+  const ns = await Promise.all(outros.slice(0, 3).map(async (m: any) => m.member?.displayName ? { nome: m.member.displayName } : pessoa(m.member.name)));
+  const bons = ns.map(n => n.nome).filter(n => n && !/^Contato externo$/.test(n));
+  return bons.join(", ") || "Conversa do Chat";
 }
 
 export async function listarEspacos(): Promise<any[]> {
@@ -109,16 +114,18 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
   const marcador = anexo ? (midia.tipo === "imagem" ? "[imagem]" : midia.tipo === "video" ? "[vídeo]" : midia.tipo === "audio" ? "[áudio]" : `[documento: ${midia.midia_nome}]`) : "";
   const texto = [marcador, String(m.text || "").trim()].filter(Boolean).join(" ").trim();
   if (!texto) return false;
-  const autor = deMim ? "Maiccon" : (await pessoa(m.sender?.name || "")).nome;
+  const nomeDaMsg = String(m.sender?.displayName || "").trim();
+  if (nomeDaMsg && m.sender?.name && !nomes.has(m.sender.name)) nomes.set(m.sender.name, { nome: nomeDaMsg, email: "", achou: true });
+  const autor = deMim ? "Maiccon" : (nomeDaMsg || (await pessoa(m.sender?.name || "")).nome);
   const meCitou = !deMim && (MEU_NOME.test(texto) || (m.annotations || []).some((a: any) => a.type === "USER_MENTION" && a.userMention?.user?.name === eu));
   const quando = new Date(m.createTime);
   const { data: ins } = await sb.from("mensagens").upsert({
     conversa_id: conv.id, msg_id: m.name, de_mim: deMim, autor, texto: texto.slice(0, 4000), enviada_em: quando.toISOString(),
-    me_citou: meCitou, ...midia, citada_texto: m.quotedMessageMetadata ? "[mensagem citada]" : null,
+    me_citou: meCitou, ...midia, citada_texto: m.quotedMessageMetadata ? "[mensagem citada]" : null, participante: m.sender?.name || null,
   }, { onConflict: "conversa_id,msg_id", ignoreDuplicates: true }).select("id");
   if (!ins?.length) {
     // já existia (gravada antes): acerta nome de quem mandou e o anexo
-    const upd: any = {};
+    const upd: any = { participante: m.sender?.name || null };
     if (!deMim && !/^Contato/.test(autor)) upd.autor = autor;
     if (anexo && midia.midia_ref) Object.assign(upd, midia, { texto: texto.slice(0, 4000) });
     if (Object.keys(upd).length) await sb.from("mensagens").update(upd).eq("conversa_id", conv.id).eq("msg_id", m.name);
@@ -173,6 +180,7 @@ export async function sincronizarChat(opcoes: { diasPrimeira?: number; espaco?: 
     for (const m of j?.messages || []) if (await gravar(sb, conv, m, eu, primeiraVez || !!opcoes.historico || !!opcoes.forcar)) mensagens++;
   }
   if (!opcoes.espaco) await corrigirNomes(sb).catch(() => {});
+  await nomesDasDiretas(sb, eu).catch(() => {});
   return { espacos: espacos.length, novas, mensagens };
 }
 
@@ -195,4 +203,31 @@ export async function baixarAnexoChat(ref: string): Promise<{ bytes: Buffer; mim
     return { bytes: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "application/octet-stream" };
   }
   return null;
+}
+
+// Conversa direta: título = nome da outra pessoa; foto = foto dela no Workspace
+async function nomesDasDiretas(sb: any, eu: string | null) {
+  const { data: cs } = await sb.from("conversas").select("id,nome,foto_url").eq("instancia", GCHAT).eq("is_grupo", false);
+  for (const c of cs || []) {
+    const ruim = !c.nome || /^\d{6,}|Contato externo|Conversa do Chat|Conversa direta/.test(c.nome);
+    if (!ruim && c.foto_url) continue;
+    const { data: ms } = await sb.from("mensagens").select("autor,participante").eq("conversa_id", c.id).eq("de_mim", false)
+      .not("participante", "is", null).order("enviada_em", { ascending: false }).limit(20);
+    const m = (ms || []).find((x: any) => x.participante && x.participante !== eu && x.autor && !/^Contato|^\d{6,}/.test(x.autor)) || (ms || [])[0];
+    if (!m) continue;
+    const upd: any = {};
+    if (ruim && m.autor && !/^Contato|^\d{6,}/.test(m.autor)) upd.nome = m.autor;
+    if (!c.foto_url && m.participante) upd.foto_url = `/api/chat/foto?u=${encodeURIComponent(m.participante)}`;
+    if (Object.keys(upd).length) await sb.from("conversas").update(upd).eq("id", c.id);
+  }
+}
+
+// Foto de um usuário do Workspace (Admin SDK)
+export async function fotoUsuario(userName: string): Promise<{ bytes: Buffer; mime: string } | null> {
+  const id = userName.replace("users/", "");
+  const r = await fetch(`https://admin.googleapis.com/admin/directory/v1/users/${id}/photos/thumbnail`, { headers: { Authorization: `Bearer ${await tokenGoogle(ESCOPOS.usuarios)}` } });
+  if (!r.ok) return null;
+  const j = await r.json();
+  if (!j.photoData) return null;
+  return { bytes: Buffer.from(String(j.photoData).replace(/-/g, "+").replace(/_/g, "/").replace(/\*/g, "=").replace(/\./g, "="), "base64"), mime: j.mimeType || "image/jpeg" };
 }

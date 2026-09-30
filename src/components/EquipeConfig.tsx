@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-const SETORES: [string, string][] = [["DP", "Departamento Pessoal"], ["CONTABIL", "Contábil"], ["BPO", "BPO Financeiro"], ["FISCAL", "Fiscal"], ["LEGALIZACAO", "Legalização"], ["FINANCEIRO", "Financeiro Interno"]];
+const SETORES: [string, string][] = [["DP", "Departamento Pessoal"], ["CONTABIL", "Contábil"], ["BPO", "BPO Financeiro"], ["FISCAL", "Fiscal"], ["LEGALIZACAO", "Legalização"], ["FINANCEIRO", "Financeiro Interno"], ["ATENDIMENTO", "Atendimento (Célula de Entrada)"]];
 
 export default function EquipeConfig({ extId, clientOk, comChave }: { extId: string; clientOk: boolean; comChave: string[] }) {
   const [chaves, setChaves] = useState<Record<string, string>>({});
@@ -12,7 +12,7 @@ export default function EquipeConfig({ extId, clientOk, comChave }: { extId: str
   }
   return (
     <div className="card">
-      <p style={{ marginTop: 0 }}>A extensão da equipe entra com a <b>conta Google da Outtax</b> e descobre o setor pelos <b>grupos do Google</b> (dp@, contabilidade@, bpo@, fiscal@, legalizacao@, financas@). Cada painel de setor mostra só as reuniões do setor dele.</p>
+      <p style={{ marginTop: 0 }}>A extensão da equipe entra com a <b>conta Google da Outtax</b> e descobre o setor pelos <b>grupos do Google</b> (dp@, contabilidade@, bpo@, fiscal@, legalizacao@, financas@, celula-entrada@ = Atendimento). Cada painel de setor mostra só as reuniões do setor dele.</p>
       <p className="small"><b>ID da extensão:</b> <code>{extId}</code></p>
       <p className="small"><b>Login Google da extensão:</b> {clientOk ? "🟢 configurado" : "🔴 falta EXT_OAUTH_CLIENT_ID na Vercel"}</p>
       <b className="small">Chave de cada painel</b>

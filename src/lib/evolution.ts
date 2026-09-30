@@ -221,3 +221,11 @@ export async function donoDaInstancia(inst: string): Promise<string> {
   if (dono) donos.set(inst, dono);
   return dono;
 }
+
+// Contatos do WhatsApp guardados na Evolution (nome que a pessoa usa + foto)
+export async function listarContatos(inst: string): Promise<{ jid: string; nome: string; foto: string | null }[]> {
+  const r = await evo(`/chat/findContacts/${enc(inst)}`, { method: "POST", body: JSON.stringify({ where: {} }) });
+  if (!r.ok || !Array.isArray(r.json)) return [];
+  return r.json.map((c: any) => ({ jid: c.remoteJid || c.id, nome: c.pushName || c.name || "", foto: c.profilePicUrl || null }))
+    .filter((c: any) => c.jid && String(c.jid).endsWith("@s.whatsapp.net"));
+}

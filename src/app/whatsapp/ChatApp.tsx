@@ -78,6 +78,9 @@ export default function ChatApp() {
   const [avisos, setAvisos] = useState(false);
   const [modalNova, setModalNova] = useState(false);
   const [nova, setNova] = useState({ instancia: "", numero: "", nome: "", texto: "" });
+  const [buscaContato, setBuscaContato] = useState("");
+  const [contatos, setContatos] = useState<any[] | null>(null);
+  const [infoContatos, setInfoContatos] = useState<{ total: number; google: string } | null>(null);
   const [sincronizando, setSincronizando] = useState("");
   const anteriores = useRef<Map<string, number> | null>(null);
   const historicoPedido = useRef<Set<string>>(new Set());
@@ -377,6 +380,17 @@ export default function ChatApp() {
     else setSincronizando(j.nomesFuncionando ? `Pronto: ${j.espacos} espaço(s) relidos. Nomes e anexos acertados.` : `Anexos relidos, mas o Google ainda recusa os NOMES: ${j.erroNome || "sem detalhe"} — veja Configuração → Google.`);
     carregarLista(); if (ativoId) carregarConversa(ativoId, true);
     setTimeout(() => setSincronizando(""), 20000);
+  }
+  useEffect(() => {
+    if (!modalNova) return;
+    const t = setTimeout(() => fetch(`/api/chat/contatos?q=${encodeURIComponent(buscaContato)}`).then(r => r.json())
+      .then(j => { setContatos(j.contatos || []); setInfoContatos({ total: j.total, google: j.google }); }).catch(() => setContatos([])), 250);
+    return () => clearTimeout(t);
+  }, [buscaContato, modalNova]);
+  function escolherContato(c: any) {
+    const ja = c.conversas.find((x: any) => x.instancia === nova.instancia) || c.conversas[0];
+    if (ja && !nova.texto.trim()) { setModalNova(false); setAtivoId(ja.id); setViewMobile("conversa"); if (ja.instancia !== conexao && conexao !== "todas") setConexao("todas"); return; }
+    setNova(n => ({ ...n, numero: c.numero, nome: c.nome }));
   }
   async function criarNova() {
     setAviso("");
@@ -682,13 +696,31 @@ export default function ChatApp() {
         onFechar={(msg) => { setSetor(false); if (msg) { setAviso(msg); setSelecionando(false); setSel(new Set()); } }} />}
 
       {modalNova && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setModalNova(false); }}>
-        <div className="modal-caixa">
+        <div className="modal-caixa" style={{ width: 540 }}>
           <b style={{ fontSize: 16 }}>Nova conversa</b>
+          <input value={buscaContato} onChange={e => setBuscaContato(e.target.value)} placeholder="🔎 Procurar contato por nome ou número…" autoFocus style={{ marginTop: 8 }} />
+          <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
+            {contatos === null && <p className="muted small" style={{ padding: 10 }}>Carregando contatos…</p>}
+            {contatos?.length === 0 && <p className="muted small" style={{ padding: 10 }}>Ninguém encontrado. Se for número novo, digite abaixo.</p>}
+            {contatos?.map(c => (
+              <div key={c.numero} className="dg-chamado" style={{ padding: "7px 10px", background: nova.numero === c.numero ? "var(--ambar-bg)" : undefined }} onClick={() => escolherContato(c)}>
+                <div className="dg-avatar" style={{ width: 30, height: 30, fontSize: 11, background: "var(--azul)" }}>
+                  {c.foto ? <img src={c.foto} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /> : iniciais(c.nome || "?")}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="nome" style={{ fontWeight: 600 }}>{c.nome || "(sem nome)"}</div>
+                  <div className="muted small">+{c.numero} {c.fonte === "google" ? "· 📇 Google" : c.fonte === "whatsapp" ? "· WhatsApp" : ""}
+                    {c.conversas.map((x: any) => <span key={x.id} className={cx(x.instancia)} style={{ marginLeft: 4 }}>{rotuloCx(x.instancia)}</span>)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {infoContatos && <p className="muted small" style={{ margin: 0 }}>{infoContatos.total} contato(s){infoContatos.google === "ok" ? " · inclui seus contatos do Google" : " · contatos do Google: " + (infoContatos.google === "desligado" ? "desligado" : "sem permissão (ver Configuração)")}. Quem já tem conversa abre direto.</p>}
           <label style={{ marginTop: 10 }}>Enviar pelo número
             <select value={nova.instancia} onChange={e => setNova({ ...nova, instancia: e.target.value })}>
               {conexoes.filter(c => c !== "gchat").map(c => <option key={c} value={c}>{rotuloCx(c)}</option>)}
             </select></label>
-          <label style={{ marginTop: 8 }}>Telefone (DDD + número)<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
+          <label style={{ marginTop: 8 }}>Telefone — escolha na lista ou digite<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
           <label style={{ marginTop: 8 }}>Nome (opcional)<input value={nova.nome} onChange={e => setNova({ ...nova, nome: e.target.value })} /></label>
           <label style={{ marginTop: 8 }}>Primeira mensagem (opcional)<textarea value={nova.texto} onChange={e => setNova({ ...nova, texto: e.target.value })} rows={3} /></label>
           {aviso && <p className="small" style={{ color: "var(--vermelho)" }}>{aviso}</p>}

@@ -20,7 +20,7 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
 
   const testar = async (esc: string) => { try { await tokenGoogle(esc); return "ok"; } catch (e: any) { return String(e?.message ?? e); } };
   const g = googleConfigurado() ? { gmail: await testar(ESCOPOS.gmail), agenda: await testar(ESCOPOS.agenda), drive: await testar(ESCOPOS.drive),
-    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio), usuarios: await testar(ESCOPOS.usuarios), grupos: await testar(ESCOPOS.grupos) } : null;
+    chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio), usuarios: await testar(ESCOPOS.usuarios), grupos: await testar(ESCOPOS.grupos), contatos: await testar(ESCOPOS.contatos) } : null;
 
   const inicioMes = `${hojeISO().slice(0, 7)}-01T00:00:00-03:00`;
   const { data: uso } = await db().from("ia_uso").select("tokens_in,tokens_out").gte("em", inicioMes);
@@ -84,6 +84,7 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
               <tr><td><b>Google Chat</b></td><td>{g.chat === "ok" ? "🟢 autorizado" : `🔴 ${g.chat}`}</td></tr>
               <tr><td><b>Nomes (diretório)</b></td><td>{g.diretorio === "ok" ? "🟢 autorizado" : `🔴 ${g.diretorio}`}</td></tr>
               <tr><td><b>Nomes (usuários do Workspace)</b></td><td>{g.usuarios === "ok" ? "🟢 autorizado" : `🔴 ${g.usuarios} — escopo admin.directory.user.readonly`}</td></tr>
+              <tr><td><b>Contatos do Google</b></td><td>{g.contatos === "ok" ? "🟢 autorizado" : `🔴 ${g.contatos} — escopo contacts.readonly (opcional: lista de contatos na Nova conversa)`}</td></tr>
               <tr><td><b>Grupos (setores)</b></td><td>{g.grupos === "ok" ? "🟢 autorizado" : `🔴 ${g.grupos}`}</td></tr>
             </tbody>
           </table>
@@ -91,7 +92,7 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
         {g && Object.values(g).some(v => v !== "ok") ? (
           <div className="card small" style={{ marginTop: 8 }}>
             <b>Como liberar:</b> admin.google.com → Segurança → Acesso e controle de dados → Controles de API → <b>Delegação em todo o domínio</b> → editar o ID do cliente <code>{clientIdContaServico()}</code> e ACRESCENTAR (sem apagar os que já existem) os escopos que faltam — a lista final precisa conter:
-            <pre style={{ whiteSpace: "pre-wrap", background: "var(--paper)", padding: 8, borderRadius: 6 }}>{[ESCOPOS.gmail, ESCOPOS.agenda, ESCOPOS.drive, ESCOPOS.chatEspacos, ESCOPOS.chatMensagens, ESCOPOS.chatMembros, ESCOPOS.diretorio, ESCOPOS.usuarios, ESCOPOS.grupos].join(",")}</pre>
+            <pre style={{ whiteSpace: "pre-wrap", background: "var(--paper)", padding: 8, borderRadius: 6 }}>{[ESCOPOS.gmail, ESCOPOS.agenda, ESCOPOS.drive, ESCOPOS.chatEspacos, ESCOPOS.chatMensagens, ESCOPOS.chatMembros, ESCOPOS.diretorio, ESCOPOS.usuarios, ESCOPOS.grupos, ESCOPOS.contatos].join(",")}</pre>
             Se aparecer "Calendar API não está ativa": console.cloud.google.com → projeto da conta de serviço → APIs e serviços → ativar <b>Google Calendar API</b>, <b>Google Drive API</b>, <b>Google Chat API</b> e <b>People API</b>. No Google Chat API, abra a aba <b>Configuração</b> e preencha nome do app "Mesa do Sócio", avatar <code>https://mesa-socio.vercel.app/icone-192.png</code> e uma descrição (é exigência do Google, mesmo sem usar bot).
           </div>
         ) : null}

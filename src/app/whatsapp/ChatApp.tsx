@@ -49,6 +49,7 @@ export default function ChatApp() {
   const [apagando, setApagando] = useState<any | null>(null);
   const [encaminhando, setEncaminhando] = useState<{ busca: string; destino: any | null; numero: string; instancia: string } | null>(null);
   const [encaminhandoAgora, setEncaminhandoAgora] = useState(false);
+  const [contatosEnc, setContatosEnc] = useState<any[]>([]);
   // marcar pessoas com @ (grupos do WhatsApp e espaços do Google Chat)
   const [participantes, setParticipantes] = useState<{ id: string; nome: string }[]>([]);
   const [mencoes, setMencoes] = useState<{ id: string; nome: string }[]>([]);
@@ -433,6 +434,20 @@ export default function ChatApp() {
     setMencoes(ms => ms.some(x => x.id === p.id) ? ms : [...ms, p]);
     setTimeout(() => { if (el) { const pos = marcando.inicio + p.nome.length + 2; el.focus(); el.setSelectionRange(pos, pos); } }, 0);
   }
+  useEffect(() => {
+    if (!encaminhando) { setContatosEnc([]); return; }
+    const q = encaminhando.busca.trim();
+    if (q.length < 2) { setContatosEnc([]); return; }
+    const t = setTimeout(() => fetch(`/api/chat/contatos?q=${encodeURIComponent(q)}`).then(r => r.json()).then(j => setContatosEnc(j.contatos || [])).catch(() => {}), 250);
+    return () => clearTimeout(t);
+  }, [encaminhando?.busca]);
+  function escolherContatoEnc(c: any) {
+    if (!encaminhando) return;
+    const conv = c.conversas.find((x: any) => x.instancia === encaminhando.instancia) || null;
+    const noLista = conv ? lista.find(l => l.id === conv.id) : null;
+    if (noLista) setEncaminhando({ ...encaminhando, destino: noLista, numero: "" });
+    else setEncaminhando({ ...encaminhando, destino: null, numero: c.numero, rotulo: c.nome || "+" + c.numero } as any);
+  }
   async function encaminhar() {
     if (!encaminhando) return;
     const e = encaminhando;
@@ -770,8 +785,9 @@ export default function ChatApp() {
         <div className="modal-caixa" style={{ width: 520, display: "grid", gap: 8 }}>
           <b style={{ fontSize: 16 }}>↪ Encaminhar {sel.size} mensagem(ns)</b>
           <input value={encaminhando.busca} onChange={e => setEncaminhando({ ...encaminhando, busca: e.target.value, destino: null })} placeholder="🔎 Procurar conversa (WhatsApp ou Google Chat)…" autoFocus />
-          <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
-            {lista.filter(c => c.modo !== "ignorada" && (!encaminhando.busca.trim() || `${c.nome} ${c.jid}`.toLowerCase().includes(encaminhando.busca.toLowerCase()))).slice(0, 60).map(c => (
+          <div style={{ maxHeight: 300, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
+            <div className="muted small" style={{ padding: "6px 10px 2px", fontWeight: 700 }}>Conversas</div>
+            {lista.filter(c => c.modo !== "ignorada" && (!encaminhando.busca.trim() || `${c.nome} ${c.jid}`.toLowerCase().includes(encaminhando.busca.toLowerCase()))).slice(0, 40).map(c => (
               <div key={c.id} className="dg-chamado" style={{ padding: "7px 10px", background: encaminhando.destino?.id === c.id ? "var(--ambar-bg)" : undefined }}
                 onClick={() => setEncaminhando({ ...encaminhando, destino: c, numero: "" })}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -779,16 +795,25 @@ export default function ChatApp() {
                   <span className={cx(c.instancia)}>{rotuloCx(c.instancia)}</span>
                 </div>
               </div>))}
+            {contatosEnc.length > 0 && <div className="muted small" style={{ padding: "8px 10px 2px", fontWeight: 700 }}>Contatos (envia pelo número escolhido abaixo)</div>}
+            {contatosEnc.map(c => (
+              <div key={c.numero} className="dg-chamado" style={{ padding: "7px 10px", background: !encaminhando.destino && encaminhando.numero === c.numero ? "var(--ambar-bg)" : undefined }}
+                onClick={() => escolherContatoEnc(c)}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="nome" style={{ fontWeight: 600 }}>{c.nome || "(sem nome)"}</div>
+                  <span className="muted small">+{c.numero} {c.fonte === "google" ? "· 📇 Google" : c.fonte === "whatsapp" ? "· WhatsApp" : ""}</span>
+                </div>
+              </div>))}
           </div>
           <div className="muted small">ou para um número novo:</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <input value={encaminhando.numero} onChange={e => setEncaminhando({ ...encaminhando, numero: e.target.value, destino: null })} placeholder="DDD + número" />
+            <input value={encaminhando.numero} onChange={e => setEncaminhando({ ...encaminhando, numero: e.target.value, destino: null, rotulo: "" } as any)} placeholder="DDD + número" />
             <select value={encaminhando.instancia} onChange={e => setEncaminhando({ ...encaminhando, instancia: e.target.value })} style={{ maxWidth: 170 }}>
               {conexoes.filter(x => x !== "gchat").map(x => <option key={x} value={x}>{rotuloCx(x)}</option>)}
             </select>
           </div>
           <div className="acoes" style={{ justifyContent: "flex-end" }}>
-            <span className="small muted" style={{ flex: 1 }}>{encaminhando.destino ? `Para: ${encaminhando.destino.nome}` : encaminhando.numero ? `Para: ${encaminhando.numero}` : ""}</span>
+            <span className="small muted" style={{ flex: 1 }}>{encaminhando.destino ? `Para: ${encaminhando.destino.nome}` : encaminhando.numero ? `Para: ${(encaminhando as any).rotulo || encaminhando.numero} (pelo ${rotuloCx(encaminhando.instancia)})` : ""}</span>
             <button className="sec" onClick={() => setEncaminhando(null)}>Cancelar</button>
             <button onClick={encaminhar} disabled={encaminhandoAgora || (!encaminhando.destino && !encaminhando.numero.trim())}>{encaminhandoAgora ? "Enviando…" : "Encaminhar"}</button>
           </div>

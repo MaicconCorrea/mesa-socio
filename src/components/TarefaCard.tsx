@@ -2,6 +2,7 @@ import { concluirTarefa, descartarTarefa } from "@/app/actions";
 import { dataHora, ROTULO_TIPO } from "@/lib/fmt";
 import AgendarBotao from "./AgendarBotao";
 import SetorBotao from "./SetorBotao";
+import ResolverTarefa from "./ResolverTarefa";
 
 export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string }) {
   return (
@@ -26,6 +27,7 @@ export default function TarefaCard({ t, classe = "" }: { t: any; classe?: string
       <div className="acoes">
         <form action={concluirTarefa}><input type="hidden" name="id" value={t.id} /><button className="ok">✓ Feito</button></form>
         <form action={descartarTarefa}><input type="hidden" name="id" value={t.id} /><button className="perigo">Descartar</button></form>
+        <ResolverTarefa t={{ id: t.id, titulo: t.titulo, conversa_id: t.conversa_id }} />
         {t.categoria !== "pessoal" ? <SetorBotao tarefaId={t.id} /> : null}
         {t.prazo && !t.evento_id ? <AgendarBotao id={t.id} /> : t.evento_id ? <span className="small muted">📅 na agenda</span> : null}
       </div>

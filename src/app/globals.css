@@ -468,3 +468,4 @@ button.perigo{background:#fff;color:var(--vermelho);border:1px solid var(--line)
   .dg-conv-cab .acoes .rot{display:none}
 }
 .dg-compositor{position:relative}
+a.btn{display:inline-flex;align-items:center;font-weight:600;font-size:13.5px;padding:9px 16px;border-radius:6px;background:var(--navy);color:#fff}a.btn.sec{background:#fff;color:var(--navy);border:1px solid var(--line)}

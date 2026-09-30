@@ -74,7 +74,7 @@ async function registrarUso(conversaId: string, uso: any) {
   await db().from("ia_uso").insert({ conversa_id: conversaId, tokens_in: uso.input_tokens || 0, tokens_out: uso.output_tokens || 0 });
 }
 
-function linhasMensagens(msgs: any[], corte: number) {
+export function linhasMensagens(msgs: any[], corte: number) {
   return msgs.map((m: any) => {
     const nova = new Date(m.enviada_em).getTime() > corte ? " (NOVA)" : "";
     const citou = m.me_citou ? " (CITOU MAICCON)" : "";

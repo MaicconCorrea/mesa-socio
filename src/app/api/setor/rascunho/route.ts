@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { chamarClaude, MODELO } from "@/lib/analise";
 import { dataHora } from "@/lib/fmt";
+import { blindar } from "@/lib/socios";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
 export const maxDuration = 60;
@@ -16,12 +17,19 @@ export async function POST(req: NextRequest) {
     if (tarefaId) {
       const { data: t } = await sb.from("tarefas").select("*").eq("id", tarefaId).single();
       if (t) { contexto += `Tarefa: ${t.titulo}\n${t.detalhe || ""}\n${t.trecho ? "Trecho: " + t.trecho : ""}\nQuem: ${t.quem || ""}\n`; nomeBase = t.quem || ""; }
+      if (t?.reuniao_id) {
+        const { data: r } = await sb.from("reunioes").select("titulo,data,resumo,decisoes,participantes").eq("id", t.reuniao_id).single();
+        if (r) {
+          contexto += `\nCombinado na reunião "${blindar(r.titulo)}" (${r.data ? dataHora(r.data) : ""}). Participantes: ${blindar((r.participantes || []).join(", "))}\nResumo: ${blindar(r.resumo)}\nDecisões: ${blindar((r.decisoes || []).join("; "))}\n`;
+          nomeBase = r.titulo || nomeBase;
+        }
+      }
     }
     const cid = conversaId || (tarefaId ? (await sb.from("tarefas").select("conversa_id,email_thread_id").eq("id", tarefaId).single()).data?.conversa_id : null);
     if (cid) {
       const { data: c } = await sb.from("conversas").select("nome,empresa_cnpj").eq("id", cid).single();
       const { data: ms } = await sb.from("mensagens").select("de_mim,autor,texto,enviada_em").eq("conversa_id", cid).order("enviada_em", { ascending: false }).limit(40);
-      contexto += `\nConversa de WhatsApp com ${c?.nome}:\n` + (ms || []).reverse().map(m => `[${dataHora(m.enviada_em)}] ${m.de_mim ? "Maiccon" : m.autor}: ${m.texto}`).join("\n");
+      contexto += `\nConversa de WhatsApp com ${c?.nome}:\n` + (ms || []).reverse().map(m => `[${dataHora(m.enviada_em)}] ${m.de_mim ? "Maiccon" : blindar(m.autor)}: ${blindar(m.texto)}`).join("\n");
       nomeBase = c?.nome || nomeBase;
       if (c?.empresa_cnpj) {
         const { data: e } = await sb.from("empresas").select("cnpj,razao").eq("cnpj", c.empresa_cnpj).single();
@@ -32,7 +40,7 @@ export async function POST(req: NextRequest) {
       const { lerThread, textoDaThread } = await import("@/lib/gmail");
       const { minhaConta } = await import("@/lib/google");
       const t = await lerThread(minhaConta(), threadId);
-      contexto += `\nE-mail "${t.assunto}":\n` + textoDaThread(t).slice(-12000);
+      contexto += `\nE-mail "${t.assunto}":\n` + blindar(textoDaThread(t).slice(-12000));
       nomeBase = t.mensagens[0]?.de || nomeBase;
     }
     return NextResponse.json({ ...(await rascunhar(contexto)), busca: nomeBase });

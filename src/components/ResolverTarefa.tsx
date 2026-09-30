@@ -62,9 +62,17 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
   async function perguntar(p?: string) {
     const q = (p ?? pergunta).trim(); if (!q || pensando) return;
     const hist = chat; setChat([...hist, { role: "user", content: q }]); setPergunta(""); setPensando(true);
-    const j = await fetch("/api/tarefas/ia", { method: "POST", body: JSON.stringify({ tarefaId: t.id, pergunta: q, historico: hist }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
-    setPensando(false);
-    setChat(c => [...c, { role: "assistant", content: j.erro ? "⚠️ " + j.erro : j.resposta }]);
+    try {
+      const r = await fetch("/api/tarefas/ia", { method: "POST", body: JSON.stringify({ tarefaId: t.id, pergunta: q, historico: hist }) });
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      const j = await r.json();
+      setPensando(false);
+      setChat(c => [...c, { role: "assistant", content: j.erro ? "⚠️ " + j.erro : j.resposta }]);
+    } catch (e: any) {
+      setPensando(false);
+      const msg = String(e?.message || e);
+      setChat(c => [...c, { role: "assistant", content: "⚠️ Erro ao chamar a IA: " + msg + (msg.includes("504") || msg.includes("timeout") ? " (tente de novo — a IA pode estar processando um documento grande)" : "") }]);
+    }
     setTimeout(() => fimChat.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }
   useEffect(() => {
@@ -197,6 +205,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
               📄 {d.nome}
               {d.status === "lendo" && <span className="muted">· lendo…</span>}
               {d.status === "lido" && <><span style={{ color: "var(--verde)" }}>· ✓ lido{d.paginas ? ` · ${d.paginas} pág.` : ""}</span><button className="linkbtn small" onClick={() => verLido(d.id)}>ver o que foi lido</button></>}
+              {d.status === "lendo" && d.paginas && d.paginas > 15 && <span className="muted" style={{ fontSize: 12 }}>— pode levar 2–3 min se for escaneado</span>}
               {d.status === "erro" && <><span style={{ color: "var(--vermelho)" }} title={d.erro}>· ⚠️ não consegui ler</span><button className="linkbtn small" onClick={() => reler(d.id)}>tentar de novo</button></>}
               <button className="linkbtn small" title="tirar" onClick={() => tirarDoc(d.id)}>✕</button>
             </span>)}

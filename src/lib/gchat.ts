@@ -10,7 +10,11 @@ import { notificar } from "./push";
 
 const API = "https://chat.googleapis.com/v1";
 export const GCHAT = "gchat";
-const MEU_NOME = /\bmai+c+o+[nm]\b/i;
+// Nome do sócio da vez (Maiccon, Marcos…) — marcação por nome no texto
+function regexDoNome(primeiro: string) {
+  if (/^mai+c+o+[nm]$/i.test(primeiro)) return /\bmai+c+o+[nm]\b/i;
+  return new RegExp(`\\b${primeiro.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "")}\\b`, "i");
+}
 
 async function api(escopo: string, caminho: string, init: RequestInit = {}) {
   const r = await fetch(`${API}${caminho}`, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${await tokenGoogle(escopo)}`, "Content-Type": "application/json" }, cache: "no-store" });
@@ -124,6 +128,7 @@ async function gravar(sb: any, conv: any, m: any, eu: string | null, historico: 
   const nomeDaMsg = String(m.sender?.displayName || "").trim();
   if (nomeDaMsg && m.sender?.name && !nomes.has(m.sender.name)) nomes.set(m.sender.name, { nome: nomeDaMsg, email: "", achou: true });
   const autor = deMim ? (await socioAtual()).primeiro : (nomeDaMsg || (await pessoa(m.sender?.name || "")).nome);
+  const MEU_NOME = regexDoNome((await socioAtual()).primeiro);
   const meCitou = !deMim && (MEU_NOME.test(texto) || (m.annotations || []).some((a: any) => a.type === "USER_MENTION" && a.userMention?.user?.name === eu));
   const quando = new Date(m.createTime);
   const { data: ins } = await sb.from("mensagens").upsert({

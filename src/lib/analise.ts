@@ -7,7 +7,7 @@ import { lerConfig } from "./config";
 import { notificar } from "./push";
 import { estiloDoMaiccon } from "./estilo";
 import { comDono } from "./contexto";
-import { personalizar } from "./socios";
+import { personalizar, blindar } from "./socios";
 import { dbGlobal } from "./db";
 
 export const MODELO = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
@@ -78,8 +78,8 @@ export function linhasMensagens(msgs: any[], corte: number) {
   return msgs.map((m: any) => {
     const nova = new Date(m.enviada_em).getTime() > corte ? " (NOVA)" : "";
     const citou = m.me_citou ? " (CITOU MAICCON)" : "";
-    const quem = m.de_mim ? "Maiccon" : (m.autor || "Contato");
-    return `[${dataHora(m.enviada_em)}] ${quem}: ${m.texto}${citou}${nova}`;
+    const quem = m.de_mim ? "Maiccon" : blindar(m.autor || "Contato");
+    return `[${dataHora(m.enviada_em)}] ${quem}: ${blindar(m.texto)}${citou}${nova}`;
   });
 }
 
@@ -141,12 +141,15 @@ export async function analisarConversa(conversaId: string) {
   }
 
   const ultimaDeMim = msgs[msgs.length - 1]?.de_mim;
+  // você tirou de "esperando você": só volta a marcar se chegou mensagem depois disso
+  const ultimaDeOutro = [...msgs].reverse().find((m: any) => !m.de_mim);
+  const dispensada = !!conv.esperando_dispensado_em && (!ultimaDeOutro || new Date(ultimaDeOutro.enviada_em) <= new Date(conv.esperando_dispensado_em));
   const cfg = await lerConfig();
   const sug = cfg.sugestao_auto && !ultimaDeMim && obj.sugestao_resposta ? String(obj.sugestao_resposta).trim().slice(0, 2000) : null;
   await sb.from("conversas").update({
     pendente_ia: false,
     analisada_em: new Date().toISOString(),
-    precisa_resposta: modo !== "pessoal" && !ultimaDeMim && !!obj.precisa_resposta,
+    precisa_resposta: modo !== "pessoal" && !ultimaDeMim && !dispensada && !!obj.precisa_resposta,
     resumo: obj.resumo ? String(obj.resumo).slice(0, 300) : conv.resumo,
     sugestao: sug, sugestao_em: sug ? new Date().toISOString() : null,
     ia_erro: null,
@@ -290,11 +293,11 @@ export async function analisarEmail(threadId: string) {
   const { data: abertas } = await sb.from("tarefas").select("tipo,titulo,prazo").eq("email_thread_id", threadId).eq("status", "aberta");
   const conteudo = [
     `Agora: ${agoraTexto()} (horário de Brasília)`,
-    `Assunto: ${t.assunto}`,
+    `Assunto: ${blindar(t.assunto)}`,
     `Tarefas abertas deste e-mail:`,
     ...(abertas?.length ? abertas.map((x: any) => `- [${x.tipo}] ${x.titulo}`) : ["- nenhuma"]),
     ``, `Considere NOVAS apenas as mensagens das últimas 72 horas.`, ``,
-    textoDaThread(t).slice(-14000),
+    blindar(textoDaThread(t).slice(-14000)),
   ].join("\n");
   const { obj, uso } = await chamarClaude(`${BASE}\n\n${MODO_EMAIL}\n\n${SAIDA}`, conteudo, MODELO());
   await sb.from("ia_uso").insert({ conversa_id: null, tokens_in: uso.input_tokens || 0, tokens_out: uso.output_tokens || 0 });

@@ -10,7 +10,7 @@ import { meusNumeros } from "@/lib/numeros";
 import { processarDoc } from "@/lib/docs";
 import { erro, logado, naoAutorizado } from "@/lib/api";
 
-export const maxDuration = 300; // documento longo (contrato) leva mais tempo pra IA escrever
+export const maxDuration = 600; // PDF escaneado grande (20+ páginas) pode levar 6–8 min; contrato + IA leva mais tempo
 
 // Contexto de uma tarefa: de onde ela veio (conversa, e-mail ou reunião) + para onde responder
 async function contexto(tarefaId: string) {

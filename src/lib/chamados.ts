@@ -18,6 +18,7 @@ export async function checarChamados() {
       await sb.from("chamados").update({ status: st, ...(st === "F" ? { finalizado_em: new Date().toISOString() } : {}) }).eq("id", c.id);
       if (st === "F") {
         finalizados++;
+        if (c.tarefa_id) await sb.from("tarefas").update({ status: "feita", concluida_em: new Date().toISOString() }).eq("id", c.tarefa_id).eq("status", "aberta");
         if (c.dono) await comDono(c.dono, () => notificar(`✅ ${c.departamento_nome || "Setor"} finalizou`, `${c.assunto} — ${c.empresa_nome || ""}`, c.conversa_id ? `/whatsapp?c=${c.conversa_id}` : "/", `ch-${c.id}`));
       }
     }

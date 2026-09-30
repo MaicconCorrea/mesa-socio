@@ -30,10 +30,12 @@ export async function POST(req: NextRequest) {
   if (!b.threadId || !titulo) return NextResponse.json({ erro: "Escreva o título da tarefa." }, { status: 400 });
   const sb = db();
   const prazo = b.prazo ? new Date(String(b.prazo).length <= 16 ? `${b.prazo}:00-03:00` : b.prazo).toISOString() : null;
+  const dono = req.headers.get("x-mesa-dono") || "";
   const { data, error } = await sb.from("tarefas").insert({
     email_thread_id: b.threadId, tipo: ["pedido", "promessa", "reuniao", "outro"].includes(b.tipo) ? b.tipo : "pedido",
     categoria: b.categoria === "pessoal" ? "pessoal" : "trabalho", titulo: titulo.slice(0, 200), detalhe: b.detalhe || null,
     quem: b.quem || null, prazo, origem: "email",
+    ...(dono ? { dono } : {}),
   }).select("id").single();
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
   if (data && prazo && b.tipo === "reuniao") await marcarConflito(data.id, prazo);

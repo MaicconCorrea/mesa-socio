@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 
 // Janela "Mandar pro setor": a IA rascunha o chamado; você confere, escolhe a empresa e envia pro Acessórias
-export default function MandarSetor({ conversaId, threadId, tarefaId, midias, anexosEmail, onFechar }: {
-  conversaId?: string; threadId?: string; tarefaId?: string;
+export default function MandarSetor({ conversaId, threadId, tarefaId, midias, anexosEmail, onFechar, manterAberta }: {
+  conversaId?: string; threadId?: string; tarefaId?: string; manterAberta?: boolean;
   midias?: { id: string; nome: string }[]; anexosEmail?: { chave: string; nome: string }[]; onFechar: (msg?: string) => void;
 }) {
   const [deptos, setDeptos] = useState<{ ID: string; Nome: string }[]>([]);
@@ -53,7 +53,7 @@ export default function MandarSetor({ conversaId, threadId, tarefaId, midias, an
     const dep = deptos.find(d => d.ID === f.departamento);
     const j = await fetch("/api/setor/enviar", { method: "POST", body: JSON.stringify({
       ...f, empresa_cnpj: empresa.cnpj, empresa_nome: empresa.razao, departamento_nome: dep?.Nome,
-      conversaId, threadId, tarefaId, midias: Array.from(selMidias), anexosEmail: Array.from(selEmail),
+      conversaId, threadId, tarefaId, manterAberta, midias: Array.from(selMidias), anexosEmail: Array.from(selEmail),
     }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
     setEnviando(false);
     if (j.erro) { setErro(j.erro); return; }

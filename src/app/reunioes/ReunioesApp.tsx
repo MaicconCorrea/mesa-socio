@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import MandarSetor from "@/components/MandarSetor";
 
 type R = { id: string; titulo: string; data: string | null; link: string | null; origem: string; resumo: string | null; decisoes: string[] | null; participantes: string[] | null; analisada_em: string | null; ia_erro: string | null;
-  setor?: string | null; autor_nome?: string | null; tarefas_equipe?: { quem: string; titulo: string; prazo: string | null }[] | null };
+  setor?: string | null; autor_nome?: string | null; conduzida_por?: string | null; tarefas_equipe?: { quem: string; titulo: string; prazo: string | null }[] | null };
 const SETOR_NOME: Record<string, string> = { DP: "DP", CONTABIL: "Contábil", BPO: "BPO", FISCAL: "Fiscal", LEGALIZACAO: "Legalização", FINANCEIRO: "Financeiro", ATENDIMENTO: "Atendimento", SOCIOS: "Sócios" };
 const dt = (s?: string | null) => s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
@@ -19,6 +20,8 @@ export default function ReunioesApp() {
   const [verTexto, setVerTexto] = useState(false);
   const [buscaTexto, setBuscaTexto] = useState("");
   const [aba, setAba] = useState("minhas");
+  const [setorPara, setSetorPara] = useState<string | null>(null); // tarefa da Mesa que vai virar chamado no Acessórias
+  const [conduzida, setConduzida] = useState<{ valor: string; outro: string } | null>(null);
 
   async function carregar() {
     const j = await fetch("/api/reunioes/lista").then(r => r.json());
@@ -69,6 +72,32 @@ export default function ReunioesApp() {
     await fetch("/api/tarefas/acao", { method: "POST", body: JSON.stringify({ id, acao }) });
     setTarefas(t => t.map(x => x.id === id ? { ...x, status: acao } : x));
   }
+  // tarefas combinadas na reunião de setor → Mesa (acompanhar) e/ou Acessórias (colaborador executa)
+  const naMesa = (i: number) => { const t = r?.tarefas_equipe?.[i]; return t ? tarefas.find(x => x.reuniao_id === sel && x.trecho === `equipe:${t.titulo}`) : null; };
+  async function paraMesa(indice: number | "todas"): Promise<Record<number, string> | null> {
+    if (!r) return null;
+    const j = await fetch("/api/reunioes/tarefa", { method: "POST", body: JSON.stringify(indice === "todas" ? { id: r.id, todas: true } : { id: r.id, indice }) })
+      .then(x => x.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { setAviso("Erro: " + j.erro); return null; }
+    await carregar();
+    return j.ids || {};
+  }
+  async function paraAcessorias(indice: number) {
+    const ja = naMesa(indice);
+    if (ja) { setSetorPara(ja.id); return; }
+    setOcupado("Criando a tarefa na Mesa…");
+    const ids = await paraMesa(indice);
+    setOcupado("");
+    if (ids?.[indice]) setSetorPara(ids[indice]);
+  }
+  async function salvarConduzida() {
+    if (!r || !conduzida) return;
+    const nome = conduzida.valor === "outro" ? conduzida.outro : conduzida.valor;
+    setConduzida(null); setOcupado("🤖 Reanalisando com quem conduziu…");
+    const j = await fetch("/api/reunioes/conduzida", { method: "POST", body: JSON.stringify({ id: r.id, conduzida_por: nome }) }).then(x => x.json()).catch(e => ({ erro: String(e) }));
+    setOcupado(""); setAviso(j.erro ? "Erro: " + j.erro : "Resumo refeito ✓"); carregar();
+  }
+
   function prepararEmail() {
     if (!r) return;
     const minhasAbertas = minhas.filter(t => !t.titulo.startsWith("Cobrar"));
@@ -125,6 +154,11 @@ export default function ReunioesApp() {
                 {r.analisada_em && <button onClick={prepararEmail}>✉️ Mandar resumo aos participantes</button>}
               </div>
               <div className="meta">{r.setor && r.setor !== "SOCIOS" ? `${SETOR_NOME[r.setor] || r.setor} · gravada por ${r.autor_nome} · ` : ""}{dt(r.data)}{r.participantes?.length ? " · " + r.participantes.join(", ") : ""}</div>
+              <div className="small" style={{ marginTop: 4, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                🎤 Quem conduziu: <b>{r.conduzida_por || "não informado"}</b>
+                <button className="linkbtn small" onClick={() => setConduzida({ valor: r.conduzida_por && ["Maiccon Correa", "Marcos Xavier"].includes(r.conduzida_por) ? r.conduzida_por : r.conduzida_por ? "outro" : "Maiccon Correa", outro: r.conduzida_por || "" })}>✏️ corrigir</button>
+                <span className="muted">(quem grava nem sempre é quem fala)</span>
+              </div>
               {r.ia_erro && <div className="aviso erro small" style={{ marginTop: 8 }}>{r.ia_erro}</div>}
               {r.resumo && <><h2>Resumo</h2><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{r.resumo}</p></>}
               {!!r.decisoes?.length && <><h2>Decisões</h2><ul style={{ margin: 0 }}>{r.decisoes.map((d, i) => <li key={i}>{d}</li>)}</ul></>}
@@ -147,7 +181,21 @@ export default function ReunioesApp() {
               {r.setor && r.setor !== "SOCIOS" ? <>
                 <h2>Tarefas combinadas</h2>
                 {!r.tarefas_equipe?.length && <p className="muted small">Nenhuma.</p>}
-                {(r.tarefas_equipe || []).map((t, i) => <div key={i} className="tarefa-mini"><b>{t.quem}:</b> {t.titulo}{t.prazo ? <span className="muted small"> · até {dt(t.prazo)}</span> : null}</div>)}
+                {(r.tarefas_equipe || []).length > 1 && <div className="acoes" style={{ marginBottom: 6 }}>
+                  <button className="mini sec" disabled={!!ocupado} onClick={async () => { setOcupado("Criando na Mesa…"); await paraMesa("todas"); setOcupado(""); setAviso("Todas na sua Mesa ✓"); }}>📌 Todas na Mesa</button>
+                </div>}
+                {(r.tarefas_equipe || []).map((t, i) => {
+                  const m = naMesa(i);
+                  return <div key={i} className="tarefa-mini">
+                    <div><b>{t.quem}:</b> {t.titulo}{t.prazo ? <span className="muted small"> · até {dt(t.prazo)}</span> : null}</div>
+                    <div className="acoes" style={{ marginTop: 4, alignItems: "center" }}>
+                      {m ? <span className="small" style={{ color: "#1fa855" }}>📌 na Mesa{m.status !== "aberta" ? ` (${m.status})` : ""}</span>
+                        : <button className="mini sec" disabled={!!ocupado} onClick={async () => { await paraMesa(i); setAviso("Na sua Mesa ✓"); }}>📌 Acompanhar na Mesa</button>}
+                      {m?.chamado_id ? <span className="small" style={{ color: "#1fa855" }}>📤 {m.detalhe?.match(/Chamado #\d+/)?.[0] || "chamado aberto"}</span>
+                        : <button className="mini" disabled={!!ocupado} onClick={() => paraAcessorias(i)}>📤 Abrir no Acessórias</button>}
+                    </div>
+                  </div>;
+                })}
               </> : <>
               <h2>Tarefas</h2>
               {!minhas.length && <p className="muted small">Nenhuma.</p>}
@@ -161,6 +209,7 @@ export default function ReunioesApp() {
                   {t.status === "aberta" ? <div className="acoes" style={{ marginTop: 4 }}>
                     <button className="mini ok" onClick={() => acaoTarefa(t.id, "feita")}>✓ Feito</button>
                     <button className="mini sec" onClick={() => acaoTarefa(t.id, "descartada")}>Descartar</button>
+                    {!t.chamado_id && <button className="mini" onClick={() => setSetorPara(t.id)}>📤 Abrir no Acessórias</button>}
                   </div> : <span className="small muted">{t.status}</span>}
                 </div>
               ))}
@@ -169,6 +218,22 @@ export default function ReunioesApp() {
           )}
         </div>
       </div>
+
+      {setorPara && <MandarSetor tarefaId={setorPara} manterAberta onFechar={msg => { setSetorPara(null); if (msg) { setAviso(msg + " · a tarefa fica na Mesa pra você cobrar e fecha sozinha quando o setor finalizar."); carregar(); } }} />}
+
+      {conduzida && r && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setConduzida(null); }}>
+        <div className="modal-caixa" style={{ width: 440 }}>
+          <b style={{ fontSize: 16 }}>🎤 Quem conduziu / falou pela Outtax?</b>
+          <p className="muted small" style={{ margin: 0 }}>A gravação capta o som, mas não sabe de quem é a voz. Escolha e a IA refaz o resumo.</p>
+          <label>Pessoa<select value={conduzida.valor} onChange={e => setConduzida({ ...conduzida, valor: e.target.value })}>
+            <option>Maiccon Correa</option><option>Marcos Xavier</option><option value="outro">Outra pessoa…</option></select></label>
+          {conduzida.valor === "outro" && <label>Nome<input autoFocus value={conduzida.outro} onChange={e => setConduzida({ ...conduzida, outro: e.target.value })} placeholder="Ex.: Maiccon e Solange (DP)" /></label>}
+          <div className="acoes" style={{ justifyContent: "flex-end" }}>
+            <button className="sec" onClick={() => setConduzida(null)}>Cancelar</button>
+            <button onClick={salvarConduzida} disabled={conduzida.valor === "outro" && !conduzida.outro.trim()}>Salvar e refazer resumo</button>
+          </div>
+        </div>
+      </div>}
 
       {colar && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setColar(null); }}>
         <div className="modal-caixa" style={{ width: 640 }}>

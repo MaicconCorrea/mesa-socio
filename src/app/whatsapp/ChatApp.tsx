@@ -42,6 +42,19 @@ const hora = (iso?: string | null) => {
 const semMarcador = (t?: string | null) => (t || "").replace(/^\[(imagem|vídeo|áudio|documento[^\]]*)\]\s*/, "");
 const iniciais = (n: string) => (n || "?").replace(/[^A-Za-zÀ-ú0-9 ]/g, "").trim().split(/\s+/).slice(0, 2).map(p => p[0]).join("").toUpperCase() || "?";
 
+// Renderiza texto com links clicáveis (http, https e www.)
+function renderizarComLinks(texto?: string | null) {
+  if (!texto) return null;
+  const partes = texto.split(/((?:https?:\/\/|www\.)[^\s<>"]+)/gi);
+  return <>{partes.map((p, i) => {
+    if (i % 2 === 0) return p ? <span key={i}>{p}</span> : null; // split com grupo: ímpares são os links
+    const limpo = p.replace(/[.,;:!?)\]]+$/, ""), resto = p.slice(limpo.length);
+    const href = /^www\./i.test(limpo) ? "https://" + limpo : limpo;
+    return <span key={i}><a href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      style={{ color: "inherit", textDecoration: "underline", wordBreak: "break-all" }}>{limpo}</a>{resto}</span>;
+  })}</>;
+}
+
 export default function ChatApp() {
   const [conexoes, setConexoes] = useState<string[]>([]);
   const [nomesCx, setNomesCx] = useState<Record<string, string>>({});
@@ -89,11 +102,15 @@ export default function ChatApp() {
   const cancelarGravacao = useRef(false);
   const [avisos, setAvisos] = useState(false);
   const [modalNova, setModalNova] = useState(false);
+  const [abaNova, setAbaNova] = useState<"buscar" | "criar">("buscar"); // aba do modal: buscar contato existente ou criar novo
   const [nova, setNova] = useState({ instancia: "", numero: "", nome: "", texto: "" });
+  const [criarContatoAviso, setCriarContatoAviso] = useState("");
   const [buscaContato, setBuscaContato] = useState("");
   const [contatos, setContatos] = useState<any[] | null>(null);
   const [infoContatos, setInfoContatos] = useState<{ total: number; google: string } | null>(null);
   const [sincronizando, setSincronizando] = useState("");
+  const [contatoSalvo, setContatoSalvo] = useState(true); // número da conversa aberta está no Google Contatos / Mesa?
+  const [novoContato, setNovoContato] = useState<{ nome: string; salvando: boolean; erro: string } | null>(null);
   const anteriores = useRef<Map<string, number> | null>(null);
   const historicoPedido = useRef<Set<string>>(new Set());
   const [carregandoAntigas, setCarregandoAntigas] = useState(false);
@@ -243,6 +260,42 @@ export default function ChatApp() {
     }, 6000);
     return () => { clearInterval(t); clearInterval(conf); };
   }, [ativoId, carregarConversa]);
+
+  // contato salvo? (só conversa individual de WhatsApp)
+  const jidAtivo = (lista.find(c => c.id === ativoId) || conv)?.jid as string | undefined;
+  useEffect(() => {
+    setContatoSalvo(true);
+    if (!jidAtivo || !jidAtivo.endsWith("@s.whatsapp.net")) return;
+    const alvo = jidAtivo;
+    fetch(`/api/chat/contato-salvo?jid=${encodeURIComponent(alvo)}`).then(r => r.json())
+      .then(j => { if (alvo === jidAtivo) setContatoSalvo(j.salvo !== false); }).catch(() => {});
+  }, [jidAtivo]);
+  async function salvarContatoDaConversa() {
+    if (!novoContato || !ativoId || !jidAtivo) return;
+    setNovoContato({ ...novoContato, salvando: true, erro: "" });
+    const j = await fetch("/api/chat/contato", { method: "POST", body: JSON.stringify({ numero: jidAtivo.split("@")[0], nome: novoContato.nome, conversaId: ativoId }) })
+      .then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { setNovoContato({ ...novoContato, salvando: false, erro: j.erro }); return; }
+    setNovoContato(null); setContatoSalvo(true);
+    setLista(l => l.map(c => c.id === ativoId ? { ...c, nome: novoContato.nome } : c));
+    setAviso(j.google ? "✅ Contato salvo no Google Contatos (vai aparecer no celular)." : "✅ Contato salvo na Mesa. " + (j.aviso ? "Não foi pro Google Contatos: " + j.aviso : ""));
+  }
+
+  async function responderPrivado(m: Msg) {
+    setAviso("Abrindo conversa no privado…");
+    const j = await fetch("/api/chat/privado", { method: "POST", body: JSON.stringify({ mensagemId: m.id }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { setAviso("⚠️ " + j.erro); return; }
+    const trecho = (m.texto || "").slice(0, 120);
+    await carregarLista();
+    setAtivoId(j.id); setViewMobile("conversa");
+    setTimeout(() => setAviso(trecho ? `🔒 Privado com ${m.autor || "contato"} — sobre: "${trecho}${(m.texto || "").length > 120 ? "…" : ""}"` : ""), 300);
+  }
+
+  async function naoEsperando(id: string) {
+    setLista(l => l.map(c => c.id === id ? { ...c, precisa_resposta: false } : c));
+    if (id === ativoId) setConv((c: any) => c ? { ...c, precisa_resposta: false, sugestao: null } : c);
+    await fetch("/api/chat/esperando", { method: "POST", body: JSON.stringify({ id }) }).catch(() => {});
+  }
 
   const aoRolar = () => {
     const el = msgsRef.current; if (!el) return;
@@ -507,6 +560,13 @@ export default function ChatApp() {
     setModalNova(false); setNova({ instancia: nova.instancia, numero: "", nome: "", texto: "" });
     await carregarLista(); setAtivoId(j.id); setViewMobile("conversa");
   }
+  async function criarContato() {
+    setCriarContatoAviso("");
+    const j = await fetch("/api/chat/contato", { method: "POST", body: JSON.stringify({ numero: nova.numero, nome: nova.nome }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { setCriarContatoAviso(j.erro); return; }
+    setCriarContatoAviso("✓ Contato criado! Agora choose abaixo para conversar.");
+    setTimeout(() => { setAbaNova("buscar"); setBuscaContato(nova.nome.trim() || nova.numero); }, 800);
+  }
   async function carregarAntigas() {
     if (!ativoId) return;
     setCarregandoAntigas(true);
@@ -534,7 +594,7 @@ export default function ChatApp() {
         <h1 style={{ margin: 0 }}>WhatsApp</h1>
         <span className="muted small">Atualiza sozinho · {conexoes.map(c => <span key={c} className={cx(c)} style={{ marginRight: 4 }}>{rotuloCx(c)}</span>)}</span>
         <div className="acoes" style={{ marginLeft: "auto" }}>
-          <button onClick={() => { setNova(n => ({ ...n, instancia: n.instancia || conexoes.find(c => c !== "gchat") || "" })); setModalNova(true); }}>+ Nova conversa</button>
+          <button onClick={() => { setAbaNova("buscar"); setCriarContatoAviso(""); setNova(n => ({ ...n, instancia: n.instancia || conexoes.find(c => c !== "gchat") || "" })); setModalNova(true); }}>+ Nova conversa</button>
           <button className="sec" onClick={sincronizar} title="Traz pro painel as conversas dos últimos 90 dias do celular">🔄 Sincronizar conversas</button>
           {conexao === "gchat" && <button className="sec" onClick={corrigirGchat} title="Relê 30 dias do Google Chat e acerta nomes e anexos">🛠️ Corrigir Google Chat</button>}
           <button className="sec" onClick={alternarAvisos} title="Som e notificação quando chegar mensagem">{avisos ? "🔔 Avisos ligados" : "🔕 Ligar avisos"}</button>
@@ -588,7 +648,9 @@ export default function ChatApp() {
                 </div>
                 <div style={{ display: "flex", gap: 4, marginTop: 3, flexWrap: "wrap" }}>
                   <span className={cx(c.instancia)}>{rotuloCx(c.instancia)}</span>
-                  {c.precisa_resposta && !c.ultima_msg_de_mim && <span className="pill p-ambar" style={{ fontSize: 10 }}>⏳ esperando você</span>}
+                  {c.precisa_resposta && !c.ultima_msg_de_mim && <span className="pill p-ambar" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}>⏳ esperando você
+                    <button title="Não é pra mim / já resolvi — tirar de esperando" onClick={e => { e.stopPropagation(); naoEsperando(c.id); }}
+                      style={{ border: 0, background: "transparent", padding: "0 2px", cursor: "pointer", fontSize: 11, lineHeight: 1, color: "inherit", fontWeight: 700 }}>✕</button></span>}
                   {c.sem_retorno && <span className="pill p-erro" style={{ fontSize: 10 }}>sem retorno do time</span>}
                 </div>
               </div>
@@ -603,7 +665,14 @@ export default function ChatApp() {
               <div className="dg-conv-cab">
                 <button className="dg-voltar" onClick={() => setViewMobile("lista")}>← Conversas</button>
                 <div className="conv-info">
-                  <b className="conv-nome" title={ativo.nome}>{ativo.is_grupo ? "👥 " : ""}{ativo.nome}</b>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b className="conv-nome" title={ativo.nome}>{ativo.is_grupo ? "👥 " : ""}{ativo.nome}</b>
+                    {!ativo.is_grupo && !contatoSalvo && (
+                      <button className="sec" style={{ fontSize: 12, padding: "4px 8px", whiteSpace: "nowrap" }}
+                        onClick={() => setNovoContato({ nome: /^\+?\d[\d\s()-]*$/.test(ativo.nome || "") ? "" : (ativo.nome || ""), salvando: false, erro: "" })}
+                        title="Este número não está nos seus contatos">➕ Criar contato</button>
+                    )}
+                  </div>
                   <div className="muted small conv-meta">
                     <span className={cx(ativo.instancia)}>{rotuloCx(ativo.instancia)}</span>
                     <span>{MODOS[ativo.modo] || ativo.modo}</span>
@@ -611,6 +680,7 @@ export default function ChatApp() {
                   </div>
                 </div>
                 <div className="acoes">
+                  {ativo.precisa_resposta && !ativo.ultima_msg_de_mim && <button className="sec" onClick={() => naoEsperando(ativo.id)} title="A IA marcou errado ou você já resolveu por fora">✓<span className="rot"> Não é pra mim</span></button>}
                   <select value={ativo.modo} onChange={e => mudarModo(e.target.value)} style={{ width: "auto", fontSize: 12.5, padding: "5px 8px" }} title="Modo da conversa">
                     {Object.entries(MODOS).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
                   </select>
@@ -633,14 +703,14 @@ export default function ChatApp() {
                       {selecionando && <span style={{ float: "right", marginLeft: 6 }}>{sel.has(m.id) ? "☑️" : "⬜"}</span>}
                       {!m.de_mim && ativo.is_grupo && m.autor && <div className="dg-autor" style={{ fontSize: 11, fontWeight: 700, color: "var(--azul)" }}>{m.autor}</div>}
                       {m.me_citou && <span className="citou">📣 falou com você</span>}
-                      {m.citada_texto && <div style={{ borderLeft: "3px solid var(--laranja)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--paper)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9 }}>{m.citada_texto.slice(0, 160)}</div>}
+                      {m.citada_texto && <div style={{ borderLeft: "3px solid var(--laranja)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--paper)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9, whiteSpace: "pre-wrap" }}>{renderizarComLinks(m.citada_texto.slice(0, 160))}</div>}
                       {m.apagada && <div style={{ fontStyle: "italic", opacity: .75 }}>🚫 {m.de_mim ? "Você apagou esta mensagem" : "Mensagem apagada"}</div>}
                       {!m.apagada && m.tem_midia && (
                         m.tipo === "imagem" ? <img className="midia" src={link} alt="imagem" loading="lazy" onClick={() => setVisor(m)} onLoad={() => { if (grudado.current) irProFim(); }} />
                         : m.tipo === "audio" ? <div>
                             <audio controls preload="none" src={link} />
                             {m.transcricao
-                              ? <div style={{ fontSize: 12.5, fontStyle: "italic", marginTop: 4, opacity: .95, whiteSpace: "pre-wrap" }}>📝 {m.transcricao}</div>
+                              ? <div style={{ fontSize: 12.5, fontStyle: "italic", marginTop: 4, opacity: .95, whiteSpace: "pre-wrap" }}>📝 {renderizarComLinks(m.transcricao)}</div>
                               : <div style={{ marginTop: 2 }}>
                                   <button className="linkbtn" style={{ color: "inherit", fontSize: 11.5 }} disabled={transcrevendo.has(m.id)} onClick={e => { e.stopPropagation(); transcrever(m.id); }}>
                                     {transcrevendo.has(m.id) ? "transcrevendo…" : "📝 transcrever áudio"}</button>
@@ -653,8 +723,9 @@ export default function ChatApp() {
                           : <a href={link} target="_blank" className="dg-doc">📄 {m.midia_nome || "documento"}</a>
                       )}
                       {!m.apagada && m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
-                      {!m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{txt}</div> : null}
+                      {!m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{renderizarComLinks(txt)}</div> : null}
                       <span className="qd">{(m as any).enviandoAgora ? "⏳ enviando…" : hora(m.enviada_em)}{m.editada && !m.apagada ? " · editada" : ""} {!m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button>}
+                        {!m.apagada && !m.de_mim && ativo.is_grupo && ativo.instancia !== "gchat" && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={e => { e.stopPropagation(); responderPrivado(m); }} title="Abrir conversa no privado com quem mandou">🔒 no privado</button>}
                         {podeEditar(m) && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setEditando({ m, texto: m.texto || "" })} title={ativo.instancia === "gchat" ? "Editar mensagem" : "Editar (o WhatsApp deixa até 15 min)"}>✏️ editar</button>}
                         {m.de_mim && !m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setApagando(m)} title="Apagar para todos">🗑 apagar</button>}</span>
                     </div>
@@ -879,39 +950,69 @@ export default function ChatApp() {
         midias={(msgs || []).filter(m => m.tem_midia && (!sel.size || sel.has(m.id))).slice(-15).reverse().map(m => ({ id: m.id, nome: `${m.tipo === "imagem" ? "📷" : m.tipo === "audio" ? "🎤" : "📄"} ${m.midia_nome || m.tipo} · ${hora(m.enviada_em)}` }))}
         onFechar={(msg) => { setSetor(false); if (msg) { setAviso(msg); setSelecionando(false); setSel(new Set()); } }} />}
 
+      {novoContato && ativo && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setNovoContato(null); }}>
+        <div className="modal-caixa" style={{ width: 420 }}>
+          <b style={{ fontSize: 16 }}>➕ Criar contato</b>
+          <p className="muted small" style={{ margin: 0 }}>Número: {ativo.jid?.split("@")[0]} · salva no Google Contatos (aparece no celular) e na Mesa.</p>
+          <label>Nome<input autoFocus value={novoContato.nome} onChange={e => setNovoContato({ ...novoContato, nome: e.target.value })}
+            onKeyDown={e => { if (e.key === "Enter" && novoContato.nome.trim()) salvarContatoDaConversa(); }} placeholder="Ex.: Solange - Policlínica Sapé" /></label>
+          {novoContato.erro && <div className="aviso erro small">{novoContato.erro}</div>}
+          <div className="acoes" style={{ justifyContent: "flex-end" }}>
+            <button className="sec" onClick={() => setNovoContato(null)}>Cancelar</button>
+            <button onClick={salvarContatoDaConversa} disabled={novoContato.salvando || !novoContato.nome.trim()}>{novoContato.salvando ? "Salvando…" : "Salvar contato"}</button>
+          </div>
+        </div>
+      </div>}
       {modalNova && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setModalNova(false); }}>
         <div className="modal-caixa" style={{ width: 540 }}>
-          <b style={{ fontSize: 16 }}>Nova conversa</b>
-          <input value={buscaContato} onChange={e => setBuscaContato(e.target.value)} placeholder="🔎 Procurar contato por nome ou número…" autoFocus style={{ marginTop: 8 }} />
-          <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
-            {contatos === null && <p className="muted small" style={{ padding: 10 }}>Carregando contatos…</p>}
-            {contatos?.length === 0 && <p className="muted small" style={{ padding: 10 }}>Ninguém encontrado. Se for número novo, digite abaixo.</p>}
-            {contatos?.map(c => (
-              <div key={c.numero} className="dg-chamado" style={{ padding: "7px 10px", background: nova.numero === c.numero ? "var(--ambar-bg)" : undefined }} onClick={() => escolherContato(c)}>
-                <div className="dg-avatar" style={{ width: 30, height: 30, fontSize: 11, background: "var(--azul)" }}>
-                  {c.foto ? <img src={c.foto} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /> : iniciais(c.nome || "?")}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="nome" style={{ fontWeight: 600 }}>{c.nome || "(sem nome)"}</div>
-                  <div className="muted small">+{c.numero} {c.fonte === "google" ? "· 📇 Google" : c.fonte === "whatsapp" ? "· WhatsApp" : ""}
-                    {c.conversas.map((x: any) => <span key={x.id} className={cx(x.instancia)} style={{ marginLeft: 4 }}>{rotuloCx(x.instancia)}</span>)}</div>
-                </div>
-              </div>
-            ))}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+            <b style={{ fontSize: 16, flex: 1 }}>Nova conversa</b>
+            <button className={`mini ${abaNova === "buscar" ? "" : "sec"}`} onClick={() => setAbaNova("buscar")}>🔎 Buscar contato</button>
+            <button className={`mini ${abaNova === "criar" ? "" : "sec"}`} onClick={() => setAbaNova("criar")}>➕ Criar novo</button>
           </div>
-          {infoContatos && <p className="muted small" style={{ margin: 0 }}>{infoContatos.total} contato(s){infoContatos.google === "ok" ? " · inclui seus contatos do Google" : " · contatos do Google: " + (infoContatos.google === "desligado" ? "desligado" : "sem permissão (ver Configuração)")}. Quem já tem conversa abre direto.</p>}
-          <label style={{ marginTop: 10 }}>Enviar pelo número
-            <select value={nova.instancia} onChange={e => setNova({ ...nova, instancia: e.target.value })}>
-              {conexoes.filter(c => c !== "gchat").map(c => <option key={c} value={c}>{rotuloCx(c)}</option>)}
-            </select></label>
-          <label style={{ marginTop: 8 }}>Telefone — escolha na lista ou digite<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
-          <label style={{ marginTop: 8 }}>Nome (opcional)<input value={nova.nome} onChange={e => setNova({ ...nova, nome: e.target.value })} /></label>
-          <label style={{ marginTop: 8 }}>Primeira mensagem (opcional)<textarea value={nova.texto} onChange={e => setNova({ ...nova, texto: e.target.value })} rows={3} /></label>
-          {aviso && <p className="small" style={{ color: "var(--vermelho)" }}>{aviso}</p>}
-          <div className="acoes" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-            <button className="sec" onClick={() => setModalNova(false)}>Cancelar</button>
-            <button onClick={criarNova} disabled={!nova.numero.trim()}>Abrir conversa</button>
-          </div>
+          
+          {abaNova === "buscar" && <>
+            <input value={buscaContato} onChange={e => setBuscaContato(e.target.value)} placeholder="🔎 Procurar contato por nome ou número…" autoFocus style={{ marginTop: 8 }} />
+            <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
+              {contatos === null && <p className="muted small" style={{ padding: 10 }}>Carregando contatos…</p>}
+              {contatos?.length === 0 && <p className="muted small" style={{ padding: 10 }}>Ninguém encontrado. Se for número novo, use "Criar novo" acima.</p>}
+              {contatos?.map(c => (
+                <div key={c.numero} className="dg-chamado" style={{ padding: "7px 10px", background: nova.numero === c.numero ? "var(--ambar-bg)" : undefined }} onClick={() => escolherContato(c)}>
+                  <div className="dg-avatar" style={{ width: 30, height: 30, fontSize: 11, background: "var(--azul)" }}>
+                    {c.foto ? <img src={c.foto} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /> : iniciais(c.nome || "?")}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="nome" style={{ fontWeight: 600 }}>{c.nome || "(sem nome)"}</div>
+                    <div className="muted small">+{c.numero} {c.fonte === "google" ? "· 📇 Google" : c.fonte === "whatsapp" ? "· WhatsApp" : ""}
+                      {c.conversas.map((x: any) => <span key={x.id} className={cx(x.instancia)} style={{ marginLeft: 4 }}>{rotuloCx(x.instancia)}</span>)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {infoContatos && <p className="muted small" style={{ margin: 0 }}>{infoContatos.total} contato(s){infoContatos.google === "ok" ? " · inclui seus contatos do Google" : " · contatos do Google: " + (infoContatos.google === "desligado" ? "desligado" : "sem permissão (ver Configuração)")}. Quem já tem conversa abre direto.</p>}
+            <label style={{ marginTop: 10 }}>Enviar pelo número
+              <select value={nova.instancia} onChange={e => setNova({ ...nova, instancia: e.target.value })}>
+                {conexoes.filter(c => c !== "gchat").map(c => <option key={c} value={c}>{rotuloCx(c)}</option>)}
+              </select></label>
+            <label style={{ marginTop: 8 }}>Telefone — escolha na lista ou digite<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
+            <label style={{ marginTop: 8 }}>Nome (opcional)<input value={nova.nome} onChange={e => setNova({ ...nova, nome: e.target.value })} /></label>
+            <label style={{ marginTop: 8 }}>Primeira mensagem (opcional)<textarea value={nova.texto} onChange={e => setNova({ ...nova, texto: e.target.value })} rows={3} /></label>
+            {aviso && <p className="small" style={{ color: "var(--vermelho)" }}>{aviso}</p>}
+            <div className="acoes" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+              <button className="sec" onClick={() => setModalNova(false)}>Cancelar</button>
+              <button onClick={criarNova} disabled={!nova.numero.trim()}>Abrir conversa</button>
+            </div>
+          </>}
+          
+          {abaNova === "criar" && <>
+            <label style={{ marginTop: 8 }}>Nome do contato<input value={nova.nome} onChange={e => setNova({ ...nova, nome: e.target.value })} placeholder="João Silva" autoFocus /></label>
+            <label style={{ marginTop: 8 }}>Telefone<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
+            {criarContatoAviso && <p className="small" style={{ color: criarContatoAviso.startsWith("✓") ? "var(--verde)" : "var(--vermelho)" }}>{criarContatoAviso}</p>}
+            <div className="acoes" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+              <button className="sec" onClick={() => setModalNova(false)}>Cancelar</button>
+              <button onClick={criarContato} disabled={!nova.nome.trim() || !nova.numero.trim()}>Criar contato</button>
+            </div>
+          </>}
         </div>
       </div>}
     </>

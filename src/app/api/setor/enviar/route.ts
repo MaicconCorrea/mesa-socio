@@ -38,7 +38,13 @@ export async function POST(req: NextRequest) {
       assunto: b.assunto, descricao: b.descricao, conversa_id: b.conversaId || null, email_thread_id: b.threadId || null, tarefa_id: b.tarefaId || null,
     }).select("id").single();
     if (b.conversaId) await sb.from("conversas").update({ empresa_cnpj: b.empresa_cnpj }).eq("id", b.conversaId);
-    if (b.tarefaId) await sb.from("tarefas").update({ status: "feita", concluida_em: new Date().toISOString(), chamado_id: ch?.id, detalhe: `Delegado ao ${b.departamento_nome} — chamado #${solId}` }).eq("id", b.tarefaId);
+    if (b.tarefaId && b.manterAberta) {
+      // reunião: a tarefa fica na Mesa pra cobrar; fecha sozinha quando o setor finalizar o chamado
+      const { data: t } = await sb.from("tarefas").select("titulo").eq("id", b.tarefaId).single();
+      const base = String(t?.titulo || b.assunto).replace(/^Cobrar [^:]+:\s*/, "");
+      await sb.from("tarefas").update({ chamado_id: ch?.id, titulo: `Cobrar ${b.departamento_nome || "setor"}: ${base}`.slice(0, 200),
+        quem: b.departamento_nome || null, detalhe: `Chamado #${solId} no Acessórias (${b.departamento_nome}) — ${b.empresa_nome || ""}`, ...(b.prazo ? { prazo: new Date(b.prazo + "T18:00:00-03:00").toISOString() } : {}) }).eq("id", b.tarefaId);
+    } else if (b.tarefaId) await sb.from("tarefas").update({ status: "feita", concluida_em: new Date().toISOString(), chamado_id: ch?.id, detalhe: `Delegado ao ${b.departamento_nome} — chamado #${solId}` }).eq("id", b.tarefaId);
     return NextResponse.json({ ok: true, solId, anexos: arquivos.length });
   } catch (e) { return erro(e); }
 }

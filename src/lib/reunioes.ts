@@ -6,6 +6,7 @@ import { buscarDocsReuniao, textoDoDoc } from "./drive";
 import { lerConfig } from "./config";
 import { notificar } from "./push";
 import { comDono, donoAtual } from "./contexto";
+import { blindar } from "./socios";
 
 const SISTEMA = `Você é o secretário pessoal do Maiccon, sócio da Outtax (escritório de contabilidade no RJ).
 Você recebe as anotações ou a transcrição de uma reunião (a transcrição automática pode errar nomes: "acessórios" costuma ser o sistema "Acessórias", "domínio" o sistema "Domínio"). Produza:
@@ -16,6 +17,7 @@ Você recebe as anotações ou a transcrição de uma reunião (a transcrição 
 - "minhas": o que o MAICCON ficou de fazer (ou a Outtax, quando ele é o responsável). Cada item: {"tipo":"promessa"|"pedido"|"reuniao","titulo":"verbo no infinitivo + pessoa/empresa","prazo":ISO-8601 com -03:00 ou null,"detalhe":""}.
 - "de_outros": o que OUTRAS pessoas ficaram de fazer e o Maiccon precisa acompanhar/cobrar: {"quem":"","titulo":"","prazo":ISO ou null}.
 Prazos relativos ("semana que vem", "sexta") calculados a partir da DATA DA REUNIÃO informada. Sem prazo claro = null.
+QUEM FALOU: a transcrição não identifica as vozes. NUNCA diga que a reunião foi conduzida por quem gravou. Se vier "Quem conduziu", use esse nome; senão, não diga quem conduziu (escreva "a Outtax" ou "o escritório").
 Responda SOMENTE JSON, sem crases:
 {"titulo":"","resumo":"","decisoes":[],"participantes":[],"minhas":[],"de_outros":[]}`;
 
@@ -23,7 +25,9 @@ const SISTEMA_EQUIPE = `Você é assistente do escritório de contabilidade Outt
 (a transcrição automática pode errar nomes: "acessórios" costuma ser o sistema "Acessórias", "domínio" o sistema "Domínio"). Produza:
 - "titulo": nome curto (cliente/assunto). - "resumo": 3 a 6 frases. - "decisoes": lista curta. - "participantes": nomes.
 - "tarefas": tudo o que alguém ficou de fazer: {"quem":"nome da pessoa ou Outtax/cliente","titulo":"verbo no infinitivo + o quê","prazo":ISO-8601 com -03:00 ou null}.
-Prazos relativos a partir da DATA DA REUNIÃO. Responda SOMENTE JSON, sem crases:
+Prazos relativos a partir da DATA DA REUNIÃO.
+QUEM FALOU: a transcrição não identifica as vozes. NUNCA diga que a reunião foi conduzida por quem gravou. Se vier "Quem conduziu", use esse nome; senão, não diga quem conduziu (escreva "a Outtax" ou "o escritório").
+Responda SOMENTE JSON, sem crases:
 {"titulo":"","resumo":"","decisoes":[],"participantes":[],"tarefas":[]}`;
 
 export async function analisarReuniao(id: string): Promise<{ criadas: number; titulo: string }> {
@@ -35,7 +39,10 @@ export async function analisarReuniao(id: string): Promise<{ criadas: number; ti
   if (!texto && r.doc_id) { texto = await textoDoDoc(r.doc_id); await sb.from("reunioes").update({ texto: texto.slice(0, 200000) }).eq("id", id); }
   if (!texto || texto.length < 40) throw new Error("Documento vazio ou curto demais.");
 
-  const conteudo = `Agora: ${agoraTexto()}\nData da reunião: ${r.data ? dataHora(r.data) : "desconhecida"}\nNome do documento: ${r.titulo}${r.autor_nome ? `\nQuem gravou: ${r.autor_nome}` : ""}\n\n${texto.slice(0, 60000)}`;
+  const conteudo = `Agora: ${agoraTexto()}\nData da reunião: ${r.data ? dataHora(r.data) : "desconhecida"}\nNome do documento: ${blindar(r.titulo)}`
+    + (r.autor_nome ? `\nQuem apertou o botão de gravar (pode NÃO ter falado): ${blindar(r.autor_nome)}` : "")
+    + (r.conduzida_por ? `\nQuem conduziu / falou pela Outtax (informado pelo sócio — use este nome): ${blindar(r.conduzida_por)}` : "")
+    + `\n\n${blindar(texto.slice(0, 60000))}`;
   const equipe = !!r.setor && r.setor !== "SOCIOS";
   const { obj, uso } = await chamarClaude(equipe ? SISTEMA_EQUIPE : SISTEMA, conteudo, MODELO(), 3000);
   if (equipe) {

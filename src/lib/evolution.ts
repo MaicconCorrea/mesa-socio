@@ -294,6 +294,19 @@ export async function participantesGrupo(inst: string, groupJid: string): Promis
     .map(p => ({ id: p.id, nome: p.nome || (p.fone ? String(p.fone).split("@")[0] : p.id.split("@")[0]) }));
 }
 
+// Número de telefone (jid @s.whatsapp.net) de quem está no grupo — o id pode vir como LID (@lid)
+export async function telefoneDoParticipante(inst: string, groupJid: string, participante: string): Promise<string | null> {
+  if (participante.endsWith("@s.whatsapp.net")) return participante;
+  const r = await evo(`/group/participants/${enc(inst)}?groupJid=${encodeURIComponent(groupJid)}`);
+  if (!r.ok) return null;
+  const lista: any[] = r.json?.participants || (Array.isArray(r.json) ? r.json : []);
+  const p = lista.find(x => String(x.id) === participante || String(x.lid || "") === participante);
+  const fone = String(p?.phoneNumber || p?.jid || "");
+  if (fone.endsWith("@s.whatsapp.net")) return fone;
+  const d = fone.replace(/\D/g, "");
+  return d.length >= 12 ? `${d}@s.whatsapp.net` : null;
+}
+
 // Editar mensagem de texto minha (o WhatsApp deixa até 15 minutos depois de enviar)
 export async function editarMensagem(inst: string, jid: string, msgId: string, texto: string) {
   const r = await evo(`/chat/updateMessage/${enc(inst)}`, {

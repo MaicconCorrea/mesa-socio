@@ -16,8 +16,16 @@ export async function socioAtual(): Promise<Socio> {
   const s = (await listarSocios()).find(x => x.email === d);
   return s || { email: d, nome: d.split("@")[0], primeiro: d.split("@")[0].replace(/^./, c => c.toUpperCase()) };
 }
-// Troca "Maiccon" nos textos da IA pelo sócio da vez
+// Troca "Maiccon" nos textos da IA pelo sócio da vez.
+// Só troca o que é NOSSO (instruções e rótulos). Texto de cliente/reunião/e-mail passa por blindar() antes,
+// senão "Maiccon, vê isso?" num grupo em comum virava "Marcos, vê isso?" na Mesa do Marcos.
 export async function personalizar(txt: string) {
   const s = await socioAtual();
-  return s.primeiro.toLowerCase() === "maiccon" ? txt : txt.replace(/Maiccon Correa/g, s.nome).replace(/Maiccon/g, s.primeiro);
+  if (s.primeiro.toLowerCase() === "maiccon") return txt;
+  return txt.replace(/Maiccon Correa/g, s.nome).replace(/Maiccon/g, s.primeiro).replace(/MAICCON/g, s.primeiro.toUpperCase());
+}
+// Protege nomes dentro de texto de terceiros (mensagens, transcrições, e-mails) contra o personalizar().
+// Coloca um caractere invisível no meio do nome: a IA continua lendo "Maiccon", a troca não acontece.
+export function blindar(txt?: string | null): string {
+  return String(txt ?? "").replace(/mai+c+o+[nm]/gi, x => x[0] + "\u2060" + x.slice(1));
 }

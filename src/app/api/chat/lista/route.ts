@@ -8,9 +8,11 @@ export const dynamic = "force-dynamic";
 
 // Lista de conversas (todas as conexões). O filtro é feito na tela.
 export async function GET() {
-  if (!(await logado())) return naoAutorizado();
+  const u = await logado();
+  if (!u) return naoAutorizado();
   const { data, error } = await db().from("conversas")
     .select("id,instancia,jid,nome,is_grupo,modo,ultima_msg_em,ultima_msg_de_mim,ultima_msg_texto,nao_lidas,precisa_resposta,sem_retorno,resumo,foto_url")
+    .eq("dono", u.email)
     .order("ultima_msg_em", { ascending: false, nullsFirst: false }).limit(600);
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
   const nums = await meusNumeros(true);

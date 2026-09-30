@@ -36,6 +36,8 @@ export async function criarTarefa(fd: FormData) {
   const titulo = String(fd.get("titulo") || "").trim();
   if (!titulo) return;
   const prazoTxt = String(fd.get("prazo") || "");
+  const h = headers();
+  const dono = h.get("x-mesa-dono") || "";
   await db().from("tarefas").insert({
     titulo,
     tipo: String(fd.get("tipo") || "outro"),
@@ -44,6 +46,7 @@ export async function criarTarefa(fd: FormData) {
     detalhe: String(fd.get("detalhe") || "") || null,
     prazo: prazoTxt ? new Date(`${prazoTxt}:00-03:00`).toISOString() : null,
     origem: "manual",
+    ...(dono ? { dono } : {}),
   });
   atualizar();
 }

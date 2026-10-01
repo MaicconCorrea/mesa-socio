@@ -251,7 +251,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
           <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={5} placeholder="Mensagem para o cliente (use a sugestão da IA ou escreva)…" style={{ marginTop: 8 }} />
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
             <button className="sec" onClick={() => inputArq.current?.click()}>📎 Anexar</button>
-            <input ref={inputArq} type="file" multiple hidden onChange={e => { setArquivos(a => [...a, ...Array.from(e.target.files || [])]); e.target.value = ""; }} />
+            <input ref={inputArq} type="file" multiple hidden onChange={e => { const novos = Array.from(e.target.files || []); e.target.value = ""; if (novos.length) setArquivos(a => [...a, ...novos]); }} />
             {arquivos.map((f, i) => <span key={i} className="selo" style={{ cursor: "pointer" }} title="tirar" onClick={() => setArquivos(a => a.filter((_, k) => k !== i))}>📄 {f.name} ✕</span>)}
             <label className="small" style={{ display: "flex", gap: 4, alignItems: "center", marginLeft: "auto" }}>
               <input type="checkbox" style={{ width: "auto" }} checked={feito} onChange={e => setFeito(e.target.checked)} /> marcar tarefa como feita</label>

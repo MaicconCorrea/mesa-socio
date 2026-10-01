@@ -5,6 +5,7 @@ import { soNumero } from "@/lib/evolution";
 import { gravarMensagem } from "@/lib/gravar";
 import { donoDoNumero } from "@/lib/numeros";
 import { comDono } from "@/lib/contexto";
+import { gravarLigacao } from "@/lib/ligacoes";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest) {
       participant: k.participant, tipo: d?.messageType, status: d?.status, source: d?.source } });
   } catch { /* segue */ }
 
+  if (evento === "call" || evento.startsWith("call.")) {
+    const dono = await donoDoNumero(instancia);
+    if (!dono) return NextResponse.json({ ok: true, ignorado: "número sem dono" });
+    const chamadas: any[] = Array.isArray(body.data) ? body.data : [body.data];
+    const n = await comDono(dono, async () => { let k = 0; for (const c of chamadas) if (await gravarLigacao(db(), instancia, soNumero(body.sender), c)) k++; return k; });
+    return NextResponse.json({ ok: true, ligacoes: n });
+  }
   if (!evento.includes("messages.upsert") && !evento.includes("send.message")) return NextResponse.json({ ok: true, ignorado: evento });
 
   const meuNumero = soNumero(body.sender);

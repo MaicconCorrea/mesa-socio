@@ -69,7 +69,7 @@ export default function MeusNumeros() {
                   {nomes[n.instancia] !== n.nome && <button className="mini" onClick={() => renomear(n.instancia)}>Salvar</button>}
                 </div></td>
                 <td>{n.estado === "open" ? "🟢 conectado" : n.estado === "connecting" ? "🟡 aguardando QR" : `🔴 ${n.estado}`}</td>
-                <td>{n.webhook ? "🟢 sim" : <button className="mini sec" onClick={() => religar(n.instancia)}>Ligar</button>}</td>
+                <td>{n.webhook ? <>🟢 sim <button className="mini sec" title="Reaplica os avisos (mensagens + ligações)" onClick={() => religar(n.instancia)}>↻ Religar</button></> : <button className="mini sec" onClick={() => religar(n.instancia)}>Ligar</button>}</td>
                 <td><div className="acoes">
                   {n.estado !== "open" && <button className="mini" onClick={() => abrirQr(n)}>Conectar (QR)</button>}
                   <button className="mini perigo" onClick={() => remover(n)}>Remover</button>

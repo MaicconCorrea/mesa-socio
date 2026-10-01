@@ -139,7 +139,7 @@ export default function EmailApp() {
       <textarea value={dados.corpo} onChange={e => set({ ...dados, corpo: e.target.value })} rows={8} style={{ marginTop: 8, width: "100%" }} placeholder="Escreva aqui… (ou peça pra IA escrever no painel ao lado)" autoFocus />
       <div className="acoes" style={{ marginTop: 6, alignItems: "center" }}>
         <button type="button" className="sec" onClick={() => inputArq.current?.click()}>📎 Anexar</button>
-        <input ref={inputArq} type="file" multiple hidden onChange={e => { if (e.target.files) setArquivos(a => [...a, ...Array.from(e.target.files!)]); e.target.value = ""; }} />
+        <input ref={inputArq} type="file" multiple hidden onChange={e => { const novos = Array.from(e.target.files || []); e.target.value = ""; if (novos.length) setArquivos(a => [...a, ...novos]); }} />
         {arquivos.map((f, i) => <span key={i} className="chip">{f.name} <span className="muted">{kb(f.size)}</span> <button className="linkbtn" onClick={() => setArquivos(a => a.filter((_, k) => k !== i))}>✕</button></span>)}
         <div style={{ flex: 1 }} />
         <button className="sec" onClick={() => { resposta ? setResp(null) : setNovo(null); setArquivos([]); }}>Cancelar</button>

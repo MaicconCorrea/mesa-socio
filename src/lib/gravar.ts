@@ -94,7 +94,12 @@ export async function gravarMensagem(sb: any, instancia: string, meuNumero: stri
     return false;
   }
 
-  const texto = extrairTexto(m.message);
+  // ligação perdida pode chegar como "stub" (sem texto) — vira mensagem 📞
+  const stub = String(m.messageStubType ?? "");
+  const ligacao = /^(40|CALL_MISSED_VOICE)$/.test(stub) ? "📞 Ligação de voz perdida"
+    : /^(41|CALL_MISSED_VIDEO)$/.test(stub) ? "🎥 Chamada de vídeo perdida"
+    : /^(CALL_MISSED_GROUP_VOICE|CALL_MISSED_GROUP_VIDEO)$/.test(stub) ? "📞 Ligação de grupo perdida" : "";
+  const texto = extrairTexto(m.message) || ligacao;
   if (!texto) return false;
 
   const midia = infoMidia(m.message);

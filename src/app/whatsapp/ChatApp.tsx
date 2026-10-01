@@ -414,7 +414,8 @@ export default function ChatApp() {
   }
   function adicionarArquivos(fl: FileList | null) {
     if (!fl?.length) return;
-    setArquivos(a => [...a, ...Array.from(fl)]);
+    const novos = Array.from(fl); // copia AGORA: a lista do campo é zerada logo depois (e.target.value = "")
+    if (novos.length) setArquivos(a => [...a, ...novos]);
   }
   async function iniciarGravacao() {
     try {
@@ -680,6 +681,9 @@ export default function ChatApp() {
                   </div>
                 </div>
                 <div className="acoes">
+                  {!ativo.is_grupo && ativo.instancia !== "gchat" && ativo.jid?.endsWith("@s.whatsapp.net") && <button className="sec" title="Ligar pelo WhatsApp (abre no celular ou no WhatsApp do computador)"
+                    onClick={() => { const n = ativo.jid.split("@")[0]; const celular = /Android|iPhone|iPad/i.test(navigator.userAgent);
+                      window.open(celular ? `https://wa.me/${n}` : `whatsapp://send?phone=${n}`, "_blank"); setAviso("📞 Abrimos a conversa no WhatsApp — toque no telefone 📞 lá em cima pra ligar."); }}>📞<span className="rot"> Ligar</span></button>}
                   {ativo.precisa_resposta && !ativo.ultima_msg_de_mim && <button className="sec" onClick={() => naoEsperando(ativo.id)} title="A IA marcou errado ou você já resolveu por fora">✓<span className="rot"> Não é pra mim</span></button>}
                   <select value={ativo.modo} onChange={e => mudarModo(e.target.value)} style={{ width: "auto", fontSize: 12.5, padding: "5px 8px" }} title="Modo da conversa">
                     {Object.entries(MODOS).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
@@ -723,7 +727,8 @@ export default function ChatApp() {
                           : <a href={link} target="_blank" className="dg-doc">📄 {m.midia_nome || "documento"}</a>
                       )}
                       {!m.apagada && m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
-                      {!m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{renderizarComLinks(txt)}</div> : null}
+                      {!m.apagada && txt && (m.msg_id?.startsWith("call-") || /^(📞|🎥) (Ligação|Chamada)/.test(txt)) ? <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: /perdida|recusada/.test(txt) ? "#d93025" : undefined }}>{txt}</div>
+                        : !m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{renderizarComLinks(txt)}</div> : null}
                       <span className="qd">{(m as any).enviandoAgora ? "⏳ enviando…" : hora(m.enviada_em)}{m.editada && !m.apagada ? " · editada" : ""} {!m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button>}
                         {!m.apagada && !m.de_mim && ativo.is_grupo && ativo.instancia !== "gchat" && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={e => { e.stopPropagation(); responderPrivado(m); }} title="Abrir conversa no privado com quem mandou">🔒 no privado</button>}
                         {podeEditar(m) && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setEditando({ m, texto: m.texto || "" })} title={ativo.instancia === "gchat" ? "Editar mensagem" : "Editar (o WhatsApp deixa até 15 min)"}>✏️ editar</button>}

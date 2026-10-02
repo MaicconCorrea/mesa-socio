@@ -291,6 +291,16 @@ export default function ChatApp() {
     setTimeout(() => setAviso(trecho ? `🔒 Privado com ${m.autor || "contato"} — sobre: "${trecho}${(m.texto || "").length > 120 ? "…" : ""}"` : ""), 300);
   }
 
+  // caixa de mensagem cresce conforme escreve (até ~metade da tela; depois rola por dentro)
+  useEffect(() => {
+    const el = campoTexto.current; if (!el) return;
+    el.style.height = "auto";
+    const max = Math.round(window.innerHeight * 0.45);
+    el.style.height = Math.min(Math.max(el.scrollHeight + 2, 64), max) + "px"; // 64 = 2 linhas
+    el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
+    if (el.selectionStart === el.value.length) el.scrollTop = el.scrollHeight; // escrevendo no fim: mostra a última linha
+  }, [texto, ativoId]);
+
   async function naoEsperando(id: string) {
     setLista(l => l.map(c => c.id === id ? { ...c, precisa_resposta: false } : c));
     if (id === ativoId) setConv((c: any) => c ? { ...c, precisa_resposta: false, sugestao: null } : c);
@@ -808,7 +818,7 @@ export default function ChatApp() {
                               }
                               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
                             }}
-                            style={{ flex: 1, minHeight: 44, resize: "none" }} />
+                            style={{ flex: 1, minHeight: 64, resize: "none", lineHeight: 1.45 }} />
                           {texto.trim() || arquivos.length
                             ? <button onClick={enviar} disabled={enviando}>{enviando ? "Enviando…" : arquivos.length ? `Enviar ${arquivos.length}` : "Enviar"}</button>
                             : ativo.instancia === "gchat" ? <button disabled>Enviar</button> : <button className="sec" title="Gravar áudio" onClick={iniciarGravacao} disabled={enviando}>{enviando ? "…" : "🎤"}</button>}

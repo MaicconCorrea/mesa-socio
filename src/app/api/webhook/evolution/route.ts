@@ -6,6 +6,7 @@ import { gravarMensagem } from "@/lib/gravar";
 import { donoDoNumero } from "@/lib/numeros";
 import { comDono } from "@/lib/contexto";
 import { gravarLigacao } from "@/lib/ligacoes";
+import { lidasNoCelular } from "@/lib/lidas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -20,6 +21,14 @@ export async function POST(req: NextRequest) {
 
   const evento = String(body?.event || "").toLowerCase().replace(/_/g, ".");
   const instancia = String(body.instance || body.instanceName || "desconhecida");
+
+  // lida no celular / outro aparelho → zera o contador na Mesa (eventos frequentes: não vão pro log)
+  if (evento.includes("messages.update") || evento.includes("chats.update")) {
+    const dono = await donoDoNumero(instancia);
+    if (!dono) return NextResponse.json({ ok: true, ignorado: "número sem dono" });
+    const n = await comDono(dono, () => lidasNoCelular(db(), instancia, evento, body.data));
+    return NextResponse.json({ ok: true, zeradas: n });
+  }
 
   // registro (pra diagnosticar): guarda um resumo de cada evento, sem o texto
   try {

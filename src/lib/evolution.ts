@@ -43,7 +43,7 @@ export async function webhookAtual(inst: string) {
 }
 
 export async function ligarWebhook(inst: string, url: string) {
-  const events = ["MESSAGES_UPSERT", "SEND_MESSAGE", "CALL"];
+  const events = ["MESSAGES_UPSERT", "SEND_MESSAGE", "CALL", "MESSAGES_UPDATE", "CHATS_UPDATE"];
   // Formato da v2.1+ (objeto "webhook")
   let r = await evo(`/webhook/set/${encodeURIComponent(inst)}`, {
     method: "POST",
@@ -239,7 +239,7 @@ export async function criarInstancia(nomeInstancia: string, webhookUrl: string) 
     body: JSON.stringify({
       instanceName: nomeInstancia, integration: "WHATSAPP-BAILEYS", qrcode: true,
       rejectCall: false, groupsIgnore: false, alwaysOnline: false, readMessages: false, readStatus: false, syncFullHistory: false,
-      webhook: { url: webhookUrl, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "SEND_MESSAGE", "CALL"] },
+      webhook: { url: webhookUrl, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "SEND_MESSAGE", "CALL", "MESSAGES_UPDATE", "CHATS_UPDATE"] },
     }),
   });
   if (!r.ok) throw new Error(`Evolution ${r.status}: ${JSON.stringify(r.json).slice(0, 200)}`);

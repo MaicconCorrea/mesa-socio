@@ -51,3 +51,4 @@
 | v0.15.4 | 01/10/2026 | Correção: arquivo escolhido no 📎 não anexava (WhatsApp, e-mail e resolver tarefa) — a lista era lida depois de o campo ser zerado | — |
 | v0.15.5 | 01/10/2026 | Lidas sincronizadas nos dois sentidos: leu no celular → some o contador na Mesa (eventos MESSAGES_UPDATE/CHATS_UPDATE — reativar com ↻ Religar); abriu/"marcar todas" na Mesa → tracinhos azuis no celular (a rota da v0.14.5 consultava colunas inexistentes e falhava calada) | — |
 | v0.15.6 | 01/10/2026 | Caixa de mensagem do WhatsApp cresce conforme escreve (até ~45% da tela, depois rola por dentro) — inclusive ao usar a sugestão da IA | — |
+| v0.15.7 | 02/10/2026 | 📌 Fixar conversas no topo (igual WhatsApp): botão "Fixar/Desafixar" no cabeçalho, botão direito na lista, 📌 na linha (clica desafixa) e filtro "📌 Fixadas" | 020_fixar_conversas.sql |

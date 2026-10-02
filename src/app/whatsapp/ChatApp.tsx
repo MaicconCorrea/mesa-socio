@@ -7,7 +7,7 @@ import BolhaIA from "@/components/BolhaIA";
 type Conversa = {
   id: string; instancia: string; jid: string; nome: string; is_grupo: boolean; modo: string;
   ultima_msg_em: string | null; ultima_msg_de_mim: boolean | null; ultima_msg_texto: string | null;
-  nao_lidas: number; precisa_resposta: boolean; sem_retorno: boolean; resumo: string | null; foto_url?: string | null;
+  nao_lidas: number; precisa_resposta: boolean; sem_retorno: boolean; resumo: string | null; foto_url?: string | null; fixada_em?: string | null;
 };
 type Msg = { apagada?: boolean; editada?: boolean;
   id: string; msg_id: string; de_mim: boolean; autor: string | null; texto: string | null; enviada_em: string;
@@ -27,7 +27,7 @@ const MODOS: Record<string, string> = {
   auto: "🤖 Automático", grupo: "👥 Grupo do escritório", pessoal: "🏠 Pessoal", ignorada: "🚫 Ignorada",
 };
 const VISOES: [string, string][] = [
-  ["todas", "Todas"], ["naolidas", "Não lidas"], ["esperando", "Esperando você"],
+  ["todas", "Todas"], ["fixadas", "📌 Fixadas"], ["naolidas", "Não lidas"], ["esperando", "Esperando você"],
   ["auto", "🤖 Automático"], ["grupo", "👥 Grupos do escritório"], ["pessoal", "🏠 Pessoal"], ["ignorada", "🚫 Ignoradas"],
 ];
 
@@ -301,6 +301,13 @@ export default function ChatApp() {
     if (el.selectionStart === el.value.length) el.scrollTop = el.scrollHeight; // escrevendo no fim: mostra a última linha
   }, [texto, ativoId]);
 
+  async function fixar(id: string, valor: boolean) {
+    const antes = lista.find(c => c.id === id)?.fixada_em ?? null;
+    setLista(l => l.map(c => c.id === id ? { ...c, fixada_em: valor ? new Date().toISOString() : null } : c));
+    const j = await fetch("/api/chat/fixar", { method: "POST", body: JSON.stringify({ id, fixar: valor }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro) { setLista(l => l.map(c => c.id === id ? { ...c, fixada_em: antes } : c)); setAviso("⚠️ " + j.erro); }
+  }
+
   async function naoEsperando(id: string) {
     setLista(l => l.map(c => c.id === id ? { ...c, precisa_resposta: false } : c));
     if (id === ativoId) setConv((c: any) => c ? { ...c, precisa_resposta: false, sugestao: null } : c);
@@ -323,8 +330,14 @@ export default function ChatApp() {
       if (visao === "naolidas" && !c.nao_lidas) return false;
       if (visao === "esperando" && !(c.precisa_resposta && !c.ultima_msg_de_mim)) return false;
       if (["auto", "grupo", "pessoal"].includes(visao) && c.modo !== visao) return false;
+      if (visao === "fixadas" && !c.fixada_em) return false;
       if (b && !(`${c.nome} ${c.jid}`.toLowerCase().includes(b))) return false;
       return true;
+    }).sort((a, z) => {
+      // fixadas sempre no topo (na ordem em que foram fixadas); o resto mantém a ordem por última mensagem
+      if (!!a.fixada_em !== !!z.fixada_em) return a.fixada_em ? -1 : 1;
+      if (a.fixada_em && z.fixada_em) return a.fixada_em.localeCompare(z.fixada_em);
+      return 0;
     });
   }, [lista, visao, conexao, busca]);
 
@@ -333,6 +346,7 @@ export default function ChatApp() {
     if (c.modo === "ignorada") return false;
     if (conexao !== "todas" && c.instancia !== conexao) return false;
     if (v === "naolidas") return c.nao_lidas > 0;
+    if (v === "fixadas") return !!c.fixada_em;
     if (v === "esperando") return c.precisa_resposta && !c.ultima_msg_de_mim;
     if (["auto", "grupo", "pessoal"].includes(v)) return c.modo === v;
     return true;
@@ -644,14 +658,19 @@ export default function ChatApp() {
           <input className="dg-busca" placeholder="Buscar nome ou número…" value={busca} onChange={e => setBusca(e.target.value)} />
           {filtrada.length === 0 && <p className="muted small" style={{ padding: 16 }}>Nada por aqui.</p>}
           {filtrada.map(c => (
-            <div key={c.id} className={"dg-chamado" + (c.id === ativoId ? " ativo" : "")} onClick={() => { setAtivoId(c.id); setViewMobile("conversa"); }}>
+            <div key={c.id} className={"dg-chamado" + (c.id === ativoId ? " ativo" : "")} onClick={() => { setAtivoId(c.id); setViewMobile("conversa"); }}
+              onContextMenu={e => { e.preventDefault(); fixar(c.id, !c.fixada_em); }} title="Botão direito: fixar / desafixar no topo">
               <div className="dg-avatar" style={{ width: 32, height: 32, fontSize: 11, background: c.is_grupo ? "var(--ink-2)" : c.modo === "pessoal" ? "#7a3db8" : "var(--azul)" }}>
                 {c.foto_url ? <img src={c.foto_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /> : c.is_grupo ? "👥" : iniciais(c.nome)}
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
                   <span className="nome" style={{ fontWeight: c.nao_lidas ? 700 : 600 }}>{c.nome}</span>
-                  <span className="hora" style={{ color: c.nao_lidas ? "#1fa855" : undefined }}>{hora(c.ultima_msg_em)}</span>
+                  <span style={{ display: "inline-flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+                    {c.fixada_em && <button title="Fixada — clique pra desafixar" onClick={e => { e.stopPropagation(); fixar(c.id, false); }}
+                      style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>📌</button>}
+                    <span className="hora" style={{ color: c.nao_lidas ? "#1fa855" : undefined }}>{hora(c.ultima_msg_em)}</span>
+                  </span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <div className="prev" style={{ flex: 1 }}>{c.ultima_msg_texto}</div>
@@ -691,6 +710,7 @@ export default function ChatApp() {
                   </div>
                 </div>
                 <div className="acoes">
+                  <button className="sec" onClick={() => fixar(ativo.id, !ativo.fixada_em)} title={ativo.fixada_em ? "Desafixar do topo" : "Fixar no topo da lista"}>📌<span className="rot"> {ativo.fixada_em ? "Desafixar" : "Fixar"}</span></button>
                   {!ativo.is_grupo && ativo.instancia !== "gchat" && ativo.jid?.endsWith("@s.whatsapp.net") && <button className="sec" title="Ligar pelo WhatsApp (abre no celular ou no WhatsApp do computador)"
                     onClick={() => { const n = ativo.jid.split("@")[0]; const celular = /Android|iPhone|iPad/i.test(navigator.userAgent);
                       window.open(celular ? `https://wa.me/${n}` : `whatsapp://send?phone=${n}`, "_blank"); setAviso("📞 Abrimos a conversa no WhatsApp — toque no telefone 📞 lá em cima pra ligar."); }}>📞<span className="rot"> Ligar</span></button>}

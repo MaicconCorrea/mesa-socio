@@ -469,3 +469,7 @@ button.perigo{background:#fff;color:var(--vermelho);border:1px solid var(--line)
 }
 .dg-compositor{position:relative}
 a.btn{display:inline-flex;align-items:center;font-weight:600;font-size:13.5px;padding:9px 16px;border-radius:6px;background:var(--navy);color:#fff}a.btn.sec{background:#fff;color:var(--navy);border:1px solid var(--line)}
+
+/* v0.15.8 · conversa: mensagens do cliente com pelo menos 60% da altura; IA + caixa de texto no máximo 40% (rolam por dentro) */
+.dg-compositor{flex-shrink:0}
+.dg-sugestao{max-height:17vh;overflow-y:auto}

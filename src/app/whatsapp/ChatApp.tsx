@@ -295,7 +295,7 @@ export default function ChatApp() {
   useEffect(() => {
     const el = campoTexto.current; if (!el) return;
     el.style.height = "auto";
-    const max = Math.round(window.innerHeight * 0.45);
+    const max = Math.round(window.innerHeight * 0.18); // caixa + sugestão da IA cabem nos 40% de baixo
     el.style.height = Math.min(Math.max(el.scrollHeight + 2, 64), max) + "px"; // 64 = 2 linhas
     el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
     if (el.selectionStart === el.value.length) el.scrollTop = el.scrollHeight; // escrevendo no fim: mostra a última linha
@@ -783,7 +783,7 @@ export default function ChatApp() {
                       <button className="mini" disabled={!sel.size} onClick={() => setEncaminhando({ busca: "", destino: null, numero: "", instancia: conexoes.find(x => x !== "gchat") || "" })}>↪ Encaminhar</button>
                       <button className="mini sec" onClick={() => { setSelecionando(false); setSel(new Set()); }}>Cancelar</button>
                     </div>}
-                    {!selecionando && !ativo.ultima_msg_de_mim && (conv?.sugestao || conv?.resumo) && dispensada !== (conv?.sugestao_em || "x") && <div style={{ background: "#f3f8ff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "7px 10px" }}>
+                    {!selecionando && !ativo.ultima_msg_de_mim && (conv?.sugestao || conv?.resumo) && dispensada !== (conv?.sugestao_em || "x") && <div className="dg-sugestao" style={{ background: "#f3f8ff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "7px 10px" }}>
                       {conv?.resumo && <div className="small muted">🤖 {conv.resumo}</div>}
                       {conv?.sugestao && <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 4 }}>
                         <div style={{ flex: 1, whiteSpace: "pre-wrap", fontSize: 13.5 }}><span className="small muted">💡 Sugestão: </span>{conv.sugestao}</div>

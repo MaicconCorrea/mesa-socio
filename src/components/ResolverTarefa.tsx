@@ -177,7 +177,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
           <div style={{ maxHeight: "52vh", minHeight: 160, overflowY: "auto", display: "grid", gap: 10, marginTop: 6, alignContent: "start" }}>
             {!chat.length && <p className="muted small" style={{ margin: 0 }}>Converse como no Claude. A IA já conhece a tarefa, a conversa/e-mail de onde ela veio e os documentos anexados. Ex.: "gere o contrato de prestação de serviços de 13 meses, R$ 2 milhões, pago por medição mensal".</p>}
             {chat.map((m, i) => m.role === "user"
-              ? <div key={i} style={{ background: "var(--primaria)", color: "var(--sobre-primaria)", padding: "8px 12px", borderRadius: 10, justifySelf: "end", maxWidth: "80%", whiteSpace: "pre-wrap", fontSize: 13.5 }}>{m.content}</div>
+              ? <div key={i} style={{ background: "var(--bolha-minha)", color: "var(--texto)", padding: "8px 12px", borderRadius: 10, justifySelf: "end", maxWidth: "80%", whiteSpace: "pre-wrap", fontSize: 13.5 }}>{m.content}</div>
               : <div key={i} style={{ display: "grid", gap: 6 }}>{partes(m.content).map((p, k) => p.tipo === "txt"
                   ? <div key={k}><Md texto={p.v.trim()} /></div>
                   : p.tipo === "doc" ? <div key={k} style={{ background: "var(--superficie)", border: "2px solid var(--acento)", borderRadius: 8, padding: "8px 10px" }}>

@@ -54,3 +54,4 @@
 | v0.15.7 | 02/10/2026 | 📌 Fixar conversas no topo (igual WhatsApp): botão "Fixar/Desafixar" no cabeçalho, botão direito na lista, 📌 na linha (clica desafixa) e filtro "📌 Fixadas" | 020_fixar_conversas.sql |
 | v0.15.8 | 02/10/2026 | Conversa dividida: mensagens do cliente ocupam no mínimo 60% da altura; resumo/sugestão da IA + caixa de texto no máximo 40% (a sugestão longa rola por dentro, botões Usar/↻/✏️/✕ sempre visíveis) | — |
 | v0.16 | 04/10/2026 | Design system Outtax: cores e fontes padronizadas com os outros painéis (manual da marca), modo noturno com botão no menu, Gotham local, KPIs e cartões sem borda colorida. | — |
+| v0.17 | 04/10/2026 | Menu com ícones de traço; bolha das minhas mensagens no padrão dos outros painéis. | — |

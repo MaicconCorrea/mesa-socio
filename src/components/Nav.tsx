@@ -4,11 +4,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { sair } from "@/app/actions";
 import BotaoTema from "@/components/BotaoTema";
+import Icone from "@/components/Icone";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
-  { titulo: "Meu dia", itens: [["/", "Hoje", "🏠"], ["/whatsapp", "WhatsApp", "💬"], ["/whatsapp?cx=gchat", "Google Chat", "🗨️"], ["/email", "E-mail", "✉️"], ["/agenda", "Agenda", "📅"], ["/reunioes", "Reuniões", "🎙️"], ["/resumo", "Resumo do dia", "☀️"]] },
-  { titulo: "Sistema", itens: [["/config", "Configuração", "⚙️"]] },
+  { titulo: "Meu dia", itens: [["/", "Hoje", "casa"], ["/whatsapp", "WhatsApp", "conversa"], ["/whatsapp?cx=gchat", "Google Chat", "chat"], ["/email", "E-mail", "email"], ["/agenda", "Agenda", "agenda"], ["/reunioes", "Reuniões", "video"], ["/resumo", "Resumo do dia", "sol"]] },
+  { titulo: "Sistema", itens: [["/config", "Configuração", "config"]] },
 ];
 
 export default function Nav({ email, nome }: { email?: string; nome?: string }) {
@@ -39,32 +40,31 @@ export default function Nav({ email, nome }: { email?: string; nome?: string }) 
   const ativo = (href: string) => (href === "/" ? p === "/" : href.includes("?") ? false : p.startsWith(href));
   const balao = (href: string) => {
     if (href === "/" && n.tarefasHoje) return <span className="bal" title="tarefas atrasadas ou de hoje">{n.tarefasHoje}</span>;
-    if (href === "/whatsapp" && n.naoLidas) return <span className="bal verde" title="mensagens não lidas">{n.naoLidas > 99 ? "99+" : n.naoLidas}</span>;
+    if (href === "/whatsapp" && n.naoLidas) return <span className="bal" title="mensagens não lidas">{n.naoLidas > 99 ? "99+" : n.naoLidas}</span>;
     if (href === "/email" && n.emails) return <span className="bal" title="e-mails esperando resposta">{n.emails}</span>;
     return null;
   };
   const entrar = () => { if (!recolhido) return; if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => setEspiando(true), 220); };
   const sairMouse = () => { if (timer.current) clearTimeout(timer.current); setEspiando(false); };
-  const IconePainel = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16" /></svg>;
 
   return (
     <>
       <div className="barra-topo">
-        <button type="button" className="nav-hamburguer" aria-label="Abrir menu" onClick={() => setAberto(a => !a)}>{aberto ? "✕" : "☰"}</button>
+        <button type="button" className="nav-hamburguer" aria-label="Abrir menu" onClick={() => setAberto(a => !a)}>{aberto ? <Icone nome="fechar" /> : <Icone nome="menu" />}</button>
         <Link href="/" className="marca-topo"><img src="/logo-branco.png" alt="Outtax" style={{ height: 22 }} /></Link>
       </div>
       {aberto && <div className="lateral-fundo" onClick={() => setAberto(false)} />}
       <aside className={"lateral" + (aberto ? " aberta" : "") + (recolhido && !espiando ? " recolhida" : "") + (recolhido && espiando ? " espiando" : "")} onMouseEnter={entrar} onMouseLeave={sairMouse}>
         <div className="lateral-cab">
           <Link href="/" className="lateral-marca"><img src="/logo-branco.png" alt="Outtax" /><span>Mesa do Sócio</span></Link>
-          <button type="button" className="lateral-recolher" title={(recolhido ? "Fixar o menu aberto" : "Recolher menu") + " (Ctrl + .)"} onClick={() => { setRecolhido(r => !r); setEspiando(false); }}><IconePainel /></button>
+          <button type="button" className="lateral-recolher" title={(recolhido ? "Fixar o menu aberto" : "Recolher menu") + " (Ctrl + .)"} onClick={() => { setRecolhido(r => !r); setEspiando(false); }}><Icone nome="painel" /></button>
         </div>
         <nav>
           {GRUPOS.map(g => (
             <div key={g.titulo} className="lateral-grupo">
               <div className="lateral-titulo">{g.titulo}</div>
               {g.itens.map(([href, rotulo, icone, extra]) => {
-                const dentro = <><span className="lateral-icone">{icone}</span><span className="lateral-texto">{rotulo}</span>{balao(href)}</>;
+                const dentro = <><span className="lateral-icone"><Icone nome={icone} /></span><span className="lateral-texto">{rotulo}</span>{balao(href)}</>;
                 return extra === "embreve"
                   ? <a key={href} className="embreve" title="em breve">{dentro}</a>
                   : href.includes("?") ? <a key={href} href={href} title={recolhido ? rotulo : undefined}>{dentro}</a>
@@ -76,7 +76,7 @@ export default function Nav({ email, nome }: { email?: string; nome?: string }) 
         <div className="lateral-eu">
           <div className="lateral-texto"><b>{nome || "Sócio"}</b><span>{email || "sócio"}</span></div>
           <BotaoTema curto={recolhido && !espiando} />
-          <form action={sair}><button type="submit" title="Sair">{recolhido ? "⎋" : "sair"}</button></form>
+          <form action={sair}><button type="submit" title="Sair">{recolhido ? <Icone nome="porta" /> : "sair"}</button></form>
         </div>
       </aside>
     </>

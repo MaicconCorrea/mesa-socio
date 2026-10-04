@@ -737,7 +737,7 @@ export default function ChatApp() {
                       {selecionando && <span style={{ float: "right", marginLeft: 6 }}>{sel.has(m.id) ? "☑️" : "⬜"}</span>}
                       {!m.de_mim && ativo.is_grupo && m.autor && <div className="dg-autor" style={{ fontSize: 11, fontWeight: 700, color: "var(--link)" }}>{m.autor}</div>}
                       {m.me_citou && <span className="citou">📣 falou com você</span>}
-                      {m.citada_texto && <div style={{ borderLeft: "3px solid var(--acento)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--superficie-2)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9, whiteSpace: "pre-wrap" }}>{renderizarComLinks(m.citada_texto.slice(0, 160))}</div>}
+                      {m.citada_texto && <div style={{ borderLeft: "3px solid var(--acento)", background: "var(--superficie-2)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9, whiteSpace: "pre-wrap" }}>{renderizarComLinks(m.citada_texto.slice(0, 160))}</div>}
                       {m.apagada && <div style={{ fontStyle: "italic", opacity: .75 }}>🚫 {m.de_mim ? "Você apagou esta mensagem" : "Mensagem apagada"}</div>}
                       {!m.apagada && m.tem_midia && (
                         m.tipo === "imagem" ? <img className="midia" src={link} alt="imagem" loading="lazy" onClick={() => setVisor(m)} onLoad={() => { if (grudado.current) irProFim(); }} />

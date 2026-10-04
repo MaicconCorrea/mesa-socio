@@ -189,9 +189,9 @@ export default function ReunioesApp() {
                   return <div key={i} className="tarefa-mini">
                     <div><b>{t.quem}:</b> {t.titulo}{t.prazo ? <span className="muted small"> · até {dt(t.prazo)}</span> : null}</div>
                     <div className="acoes" style={{ marginTop: 4, alignItems: "center" }}>
-                      {m ? <span className="small" style={{ color: "#1fa855" }}>📌 na Mesa{m.status !== "aberta" ? ` (${m.status})` : ""}</span>
+                      {m ? <span className="small" style={{ color: "var(--ok)" }}>📌 na Mesa{m.status !== "aberta" ? ` (${m.status})` : ""}</span>
                         : <button className="mini sec" disabled={!!ocupado} onClick={async () => { await paraMesa(i); setAviso("Na sua Mesa ✓"); }}>📌 Acompanhar na Mesa</button>}
-                      {m?.chamado_id ? <span className="small" style={{ color: "#1fa855" }}>📤 {m.detalhe?.match(/Chamado #\d+/)?.[0] || "chamado aberto"}</span>
+                      {m?.chamado_id ? <span className="small" style={{ color: "var(--ok)" }}>📤 {m.detalhe?.match(/Chamado #\d+/)?.[0] || "chamado aberto"}</span>
                         : <button className="mini" disabled={!!ocupado} onClick={() => paraAcessorias(i)}>📤 Abrir no Acessórias</button>}
                     </div>
                   </div>;

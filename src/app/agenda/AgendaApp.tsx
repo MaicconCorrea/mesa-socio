@@ -97,7 +97,7 @@ export default function AgendaApp() {
               const passou = new Date(e.fim).getTime() < agora;
               return (
                 <div key={e.id} onClick={() => setAberto(e)} style={{ cursor: "pointer", padding: "7px 9px", marginTop: 8, borderRadius: 8, opacity: passou ? .55 : 1,
-                  background: agoraMesmo ? "var(--ambar-bg)" : e.minhaResposta === "needsAction" ? "#fff" : "var(--paper)",
+                  background: agoraMesmo ? "var(--ambar-bg)" : e.minhaResposta === "needsAction" ? "var(--superficie)" : "var(--superficie-2)",
                   border: e.minhaResposta === "needsAction" ? "1px dashed var(--azul)" : "1px solid var(--line)" }}>
                   <div className="small muted">{e.diaInteiro ? "dia inteiro" : `${hm(e.inicio)}–${hm(e.fim)}`}{agoraMesmo ? " · agora" : ""}</div>
                   <div style={{ fontWeight: 600, fontSize: 13.5 }}>{e.titulo}</div>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { sair } from "@/app/actions";
+import BotaoTema from "@/components/BotaoTema";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
@@ -74,6 +75,7 @@ export default function Nav({ email, nome }: { email?: string; nome?: string }) 
         </nav>
         <div className="lateral-eu">
           <div className="lateral-texto"><b>{nome || "Sócio"}</b><span>{email || "sócio"}</span></div>
+          <BotaoTema curto={recolhido && !espiando} />
           <form action={sair}><button type="submit" title="Sair">{recolhido ? "⎋" : "sair"}</button></form>
         </div>
       </aside>

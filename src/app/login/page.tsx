@@ -20,7 +20,8 @@ export default function Login() {
   return (
     <div className="login-wrap" style={{ margin: -28 }}>
       <div className="login-card">
-        <img src="/logo-cor.png" alt="Outtax" style={{ height: 30, marginBottom: 14 }} />
+        <img src="/logo-cor.png" alt="Outtax" className="logo-claro" style={{ height: 30, marginBottom: 14 }} />
+        <img src="/logo-branco.png" alt="Outtax" className="logo-escuro" style={{ height: 30, marginBottom: 14 }} />
         <h1 style={{ fontSize: 20 }}>Mesa do Sócio</h1>
         <p className="sub">Seu WhatsApp, tarefas e compromissos num lugar só.</p>
         <label>E-mail<input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoFocus /></label>

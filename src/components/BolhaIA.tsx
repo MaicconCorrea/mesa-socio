@@ -12,7 +12,7 @@ export default function BolhaIA({ texto, aoUsar }: { texto: string; aoUsar: (msg
   const { explicacao, mensagem } = separarSugestao(texto);
   return <div className="ia-bolha assistant">
     {explicacao && <div style={{ whiteSpace: "pre-wrap" }}>{explicacao.replace(/\*\*/g, "")}</div>}
-    {mensagem && <div style={{ marginTop: explicacao ? 8 : 0, background: "#dcf3e4", border: "1px solid #b9e3c7", borderRadius: 8, padding: "7px 9px" }}>
+    {mensagem && <div style={{ marginTop: explicacao ? 8 : 0, background: "var(--ok-fundo)", border: "1px solid var(--linha)", borderRadius: 8, padding: "7px 9px" }}>
       <div className="small muted" style={{ marginBottom: 3 }}>✍️ Sugestão de mensagem</div>
       <div style={{ whiteSpace: "pre-wrap" }}>{mensagem}</div>
       <button className="mini" style={{ marginTop: 6 }} onClick={() => aoUsar(mensagem)}>Usar esta mensagem</button>

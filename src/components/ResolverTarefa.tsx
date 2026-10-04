@@ -172,17 +172,17 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
         </div>
 
         {/* IA */}
-        <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 10, background: "#fafbfe" }}>
+        <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 10, background: "var(--superficie-2)" }}>
           <b className="small">🤖 Conversar com a IA</b>
           <div style={{ maxHeight: "52vh", minHeight: 160, overflowY: "auto", display: "grid", gap: 10, marginTop: 6, alignContent: "start" }}>
             {!chat.length && <p className="muted small" style={{ margin: 0 }}>Converse como no Claude. A IA já conhece a tarefa, a conversa/e-mail de onde ela veio e os documentos anexados. Ex.: "gere o contrato de prestação de serviços de 13 meses, R$ 2 milhões, pago por medição mensal".</p>}
             {chat.map((m, i) => m.role === "user"
-              ? <div key={i} style={{ background: "var(--navy)", color: "#fff", padding: "8px 12px", borderRadius: 10, justifySelf: "end", maxWidth: "80%", whiteSpace: "pre-wrap", fontSize: 13.5 }}>{m.content}</div>
+              ? <div key={i} style={{ background: "var(--primaria)", color: "var(--sobre-primaria)", padding: "8px 12px", borderRadius: 10, justifySelf: "end", maxWidth: "80%", whiteSpace: "pre-wrap", fontSize: 13.5 }}>{m.content}</div>
               : <div key={i} style={{ display: "grid", gap: 6 }}>{partes(m.content).map((p, k) => p.tipo === "txt"
                   ? <div key={k}><Md texto={p.v.trim()} /></div>
-                  : p.tipo === "doc" ? <div key={k} style={{ background: "#fff", border: "2px solid var(--laranja)", borderRadius: 8, padding: "8px 10px" }}>
+                  : p.tipo === "doc" ? <div key={k} style={{ background: "var(--superficie)", border: "2px solid var(--acento)", borderRadius: 8, padding: "8px 10px" }}>
                       <b className="small">📄 {p.titulo}</b>
-                      <div style={{ maxHeight: 360, overflowY: "auto", marginTop: 6, background: "#fafbfe", padding: "8px 12px", borderRadius: 6 }}><Md texto={p.v} tamanho={12.5} /></div>
+                      <div style={{ maxHeight: 360, overflowY: "auto", marginTop: 6, background: "var(--superficie-2)", padding: "8px 12px", borderRadius: 6 }}><Md texto={p.v} tamanho={12.5} /></div>
                       <div className="acoes" style={{ marginTop: 6 }}>
                         <button className="mini" onClick={() => baixar(p.titulo || "Documento", p.v, "pdf").catch(e => setAviso(String(e)))}>⬇ Baixar PDF</button>
                         <button className="mini" onClick={() => baixar(p.titulo || "Documento", p.v, "docx").catch(e => setAviso(String(e)))}>⬇ Baixar Word</button>
@@ -191,7 +191,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
                         <button className="mini sec" onClick={() => navigator.clipboard.writeText(p.v)}>📋 Copiar</button>
                       </div>
                     </div>
-                  : <div key={k} style={{ background: "#fff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "8px 10px" }}>
+                  : <div key={k} style={{ background: "var(--superficie)", border: "1px solid var(--linha)", borderRadius: 8, padding: "8px 10px" }}>
                       <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5 }}>{p.v}</div>
                       <button className="mini" style={{ marginTop: 6 }} onClick={() => setTexto(p.v)}>Usar esta mensagem ↓</button>
                     </div>)}</div>)}
@@ -201,7 +201,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
             <button className="mini sec" onClick={() => inputDoc.current?.click()} title="PDF, Word, imagem ou texto — a IA lê">📎 Anexar documento</button>
             <input ref={inputDoc} type="file" multiple hidden accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,.txt,.csv,.md" onChange={e => { subirDocs(e.target.files); e.target.value = ""; }} />
-            {docs.map(d => <span key={d.id} className="selo" style={{ display: "inline-flex", gap: 6, alignItems: "center", background: d.status === "erro" ? "#fdecec" : d.status === "lido" ? "#e9f7ef" : undefined }}>
+            {docs.map(d => <span key={d.id} className="selo" style={{ display: "inline-flex", gap: 6, alignItems: "center", background: d.status === "erro" ? "var(--erro-fundo)" : d.status === "lido" ? "var(--ok-fundo)" : undefined }}>
               📄 {d.nome}
               {d.status === "lendo" && <span className="muted">· lendo…</span>}
               {d.status === "lido" && <><span style={{ color: "var(--verde)" }}>· ✓ lido{d.paginas ? ` · ${d.paginas} pág.` : ""}</span><button className="linkbtn small" onClick={() => verLido(d.id)}>ver o que foi lido</button></>}

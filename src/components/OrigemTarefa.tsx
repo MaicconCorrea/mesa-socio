@@ -14,7 +14,7 @@ export default function OrigemTarefa({ id }: { id: string }) {
   }
   return <div style={{ width: "100%" }}>
     <button className="linkbtn small" onClick={alternar}>{aberto ? "▲ esconder" : "🔎 Ver de onde veio"}</button>
-    {aberto && <div style={{ marginTop: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", background: "#fafbfe", fontSize: 13 }}>
+    {aberto && <div style={{ marginTop: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", background: "var(--superficie-2)", fontSize: 13 }}>
       {erro && <span className="muted">{erro}</span>}
       {!d && !erro && <span className="muted">Buscando…</span>}
       {d?.tipo === "manual" && <span className="muted">Anotada à mão, sem conversa de origem.</span>}

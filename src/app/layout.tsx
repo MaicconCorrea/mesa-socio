@@ -1,3 +1,4 @@
+import "./outtax.css";
 import "./globals.css";
 import { listarSocios } from "@/lib/socios";
 import type { Metadata } from "next";
@@ -13,14 +14,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const { data } = await sbServer().auth.getUser();
   const u = data.user;
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("tema");if(t!=="claro"&&t!=="escuro")t=matchMedia("(prefers-color-scheme: dark)").matches?"escuro":"claro";document.documentElement.dataset.theme=t}catch(e){}` }} />
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/icone-192.png" />
         <link rel="apple-touch-icon" href="/icone-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className={u ? "com-lateral" : ""}>
         {u && <Nav email={u.email} nome={u.email ? (await listarSocios()).find(s => s.email === u.email!.toLowerCase())?.primeiro : undefined} />}

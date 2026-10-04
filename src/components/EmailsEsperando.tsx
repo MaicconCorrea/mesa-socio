@@ -26,7 +26,7 @@ export default function EmailsEsperando({ emails }: { emails: any[] }) {
       <div className="card" key={e.thread_id}>
         <a className="titulo" href="#" onClick={ev => { ev.preventDefault(); setAberto(e.thread_id); }}>{e.assunto}</a>
         <div className="meta">{e.de} · {ha(e.recebido_em)}</div>
-        {e.resumo ? <div className="trecho" style={{ fontStyle: "normal", ...(e.resumo.includes("⚠️") ? { background: "#fdecec", color: "var(--vermelho)" } : {}) }}>🤖 {e.resumo}</div> : null}
+        {e.resumo ? <div className="trecho" style={{ fontStyle: "normal", ...(e.resumo.includes("⚠️") ? { background: "var(--erro-fundo)", color: "var(--erro)" } : {}) }}>🤖 {e.resumo}</div> : null}
         <div className="acoes">
           <button className="ok" onClick={() => setAberto(e.thread_id)}>↩ Responder</button>
           <button className="sec" onClick={() => setTarefa(e.thread_id)} title="Vira tarefa com prazo">📌 Gerar tarefa</button>

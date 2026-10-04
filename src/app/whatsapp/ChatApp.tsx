@@ -660,7 +660,7 @@ export default function ChatApp() {
           {filtrada.map(c => (
             <div key={c.id} className={"dg-chamado" + (c.id === ativoId ? " ativo" : "")} onClick={() => { setAtivoId(c.id); setViewMobile("conversa"); }}
               onContextMenu={e => { e.preventDefault(); fixar(c.id, !c.fixada_em); }} title="Botão direito: fixar / desafixar no topo">
-              <div className="dg-avatar" style={{ width: 32, height: 32, fontSize: 11, background: c.is_grupo ? "var(--ink-2)" : c.modo === "pessoal" ? "#7a3db8" : "var(--azul)" }}>
+              <div className="dg-avatar" style={{ width: 32, height: 32, fontSize: 11, background: c.is_grupo ? "var(--texto-2)" : c.modo === "pessoal" ? "#7a3db8" /* roxo fixo: fundo do avatar com iniciais brancas, legível nos dois temas */ : "var(--primaria)" }}>
                 {c.foto_url ? <img src={c.foto_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /> : c.is_grupo ? "👥" : iniciais(c.nome)}
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -669,7 +669,7 @@ export default function ChatApp() {
                   <span style={{ display: "inline-flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
                     {c.fixada_em && <button title="Fixada — clique pra desafixar" onClick={e => { e.stopPropagation(); fixar(c.id, false); }}
                       style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>📌</button>}
-                    <span className="hora" style={{ color: c.nao_lidas ? "#1fa855" : undefined }}>{hora(c.ultima_msg_em)}</span>
+                    <span className="hora" style={{ color: c.nao_lidas ? "var(--ok)" : undefined }}>{hora(c.ultima_msg_em)}</span>
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -733,11 +733,11 @@ export default function ChatApp() {
                   return (
                     <div key={m.id} className={"dg-msg " + (m.de_mim ? "equipe" : "cliente")}
                       onClick={selecionando ? () => alternarSel(m.id) : undefined}
-                      style={selecionando ? { cursor: "pointer", outline: sel.has(m.id) ? "3px solid var(--laranja)" : "1px dashed rgba(0,0,0,.15)", outlineOffset: 2 } : undefined}>
+                      style={selecionando ? { cursor: "pointer", outline: sel.has(m.id) ? "3px solid var(--acento)" : "1px dashed var(--borda-campo)", outlineOffset: 2 } : undefined}>
                       {selecionando && <span style={{ float: "right", marginLeft: 6 }}>{sel.has(m.id) ? "☑️" : "⬜"}</span>}
-                      {!m.de_mim && ativo.is_grupo && m.autor && <div className="dg-autor" style={{ fontSize: 11, fontWeight: 700, color: "var(--azul)" }}>{m.autor}</div>}
+                      {!m.de_mim && ativo.is_grupo && m.autor && <div className="dg-autor" style={{ fontSize: 11, fontWeight: 700, color: "var(--link)" }}>{m.autor}</div>}
                       {m.me_citou && <span className="citou">📣 falou com você</span>}
-                      {m.citada_texto && <div style={{ borderLeft: "3px solid var(--laranja)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--paper)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9, whiteSpace: "pre-wrap" }}>{renderizarComLinks(m.citada_texto.slice(0, 160))}</div>}
+                      {m.citada_texto && <div style={{ borderLeft: "3px solid var(--acento)", background: m.de_mim ? "rgba(255,255,255,.15)" : "var(--superficie-2)", padding: "3px 7px", borderRadius: 5, fontSize: 11.5, marginBottom: 4, opacity: .9, whiteSpace: "pre-wrap" }}>{renderizarComLinks(m.citada_texto.slice(0, 160))}</div>}
                       {m.apagada && <div style={{ fontStyle: "italic", opacity: .75 }}>🚫 {m.de_mim ? "Você apagou esta mensagem" : "Mensagem apagada"}</div>}
                       {!m.apagada && m.tem_midia && (
                         m.tipo === "imagem" ? <img className="midia" src={link} alt="imagem" loading="lazy" onClick={() => setVisor(m)} onLoad={() => { if (grudado.current) irProFim(); }} />
@@ -757,7 +757,7 @@ export default function ChatApp() {
                           : <a href={link} target="_blank" className="dg-doc">📄 {m.midia_nome || "documento"}</a>
                       )}
                       {!m.apagada && m.tem_midia && m.tipo !== "imagem" && <a href={`${link}&baixar=1`} className="small" style={{ marginLeft: 6, opacity: .8 }}>⬇ baixar</a>}
-                      {!m.apagada && txt && (m.msg_id?.startsWith("call-") || /^(📞|🎥) (Ligação|Chamada)/.test(txt)) ? <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: /perdida|recusada/.test(txt) ? "#d93025" : undefined }}>{txt}</div>
+                      {!m.apagada && txt && (m.msg_id?.startsWith("call-") || /^(📞|🎥) (Ligação|Chamada)/.test(txt)) ? <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: /perdida|recusada/.test(txt) ? "var(--erro)" : undefined }}>{txt}</div>
                         : !m.apagada && txt ? <div style={{ whiteSpace: "pre-wrap" }}>{renderizarComLinks(txt)}</div> : null}
                       <span className="qd">{(m as any).enviandoAgora ? "⏳ enviando…" : hora(m.enviada_em)}{m.editada && !m.apagada ? " · editada" : ""} {!m.apagada && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={() => setCitada(m)} title="Responder citando">↩ responder</button>}
                         {!m.apagada && !m.de_mim && ativo.is_grupo && ativo.instancia !== "gchat" && <button className="linkbtn" style={{ color: "inherit", fontSize: 10, marginLeft: 6 }} onClick={e => { e.stopPropagation(); responderPrivado(m); }} title="Abrir conversa no privado com quem mandou">🔒 no privado</button>}
@@ -773,7 +773,7 @@ export default function ChatApp() {
                 {ativo.modo === "ignorada"
                   ? <p className="muted small">Conversa ignorada: nada é guardado. Mude o modo acima pra voltar a acompanhar.</p>
                   : <>
-                    {selecionando && <div className="small" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", background: "var(--ambar-bg)", padding: "6px 8px", borderRadius: 8 }}>
+                    {selecionando && <div className="small" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", background: "var(--alerta-fundo)", padding: "6px 8px", borderRadius: 8 }}>
                       <b>{sel.size} selecionada(s)</b> <span className="muted">— toque nas mensagens</span>
                       <div style={{ flex: 1 }} />
                       <button className="mini" disabled={!sel.size || pensando} onClick={() => perguntarRapido("Resuma estas mensagens e diga o que precisa ser feito.", Array.from(sel))}>🤖 Resumir</button>
@@ -783,7 +783,7 @@ export default function ChatApp() {
                       <button className="mini" disabled={!sel.size} onClick={() => setEncaminhando({ busca: "", destino: null, numero: "", instancia: conexoes.find(x => x !== "gchat") || "" })}>↪ Encaminhar</button>
                       <button className="mini sec" onClick={() => { setSelecionando(false); setSel(new Set()); }}>Cancelar</button>
                     </div>}
-                    {!selecionando && !ativo.ultima_msg_de_mim && (conv?.sugestao || conv?.resumo) && dispensada !== (conv?.sugestao_em || "x") && <div className="dg-sugestao" style={{ background: "#f3f8ff", border: "1px solid #d6e4fb", borderRadius: 8, padding: "7px 10px" }}>
+                    {!selecionando && !ativo.ultima_msg_de_mim && (conv?.sugestao || conv?.resumo) && dispensada !== (conv?.sugestao_em || "x") && <div className="dg-sugestao" style={{ background: "var(--info-fundo)", border: "1px solid var(--linha)", borderRadius: 8, padding: "7px 10px" }}>
                       {conv?.resumo && <div className="small muted">🤖 {conv.resumo}</div>}
                       {conv?.sugestao && <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 4 }}>
                         <div style={{ flex: 1, whiteSpace: "pre-wrap", fontSize: 13.5 }}><span className="small muted">💡 Sugestão: </span>{conv.sugestao}</div>
@@ -801,7 +801,7 @@ export default function ChatApp() {
                         <button className="mini" disabled={sugerindo || !instrucao.trim()} onClick={() => sugerir(instrucao)}>Gerar</button>
                       </div>}
                     </div>}
-                    {citada && <div className="small" style={{ display: "flex", gap: 8, alignItems: "center", borderLeft: "3px solid var(--laranja)", background: "var(--paper)", padding: "4px 8px", borderRadius: 6 }}>
+                    {citada && <div className="small" style={{ display: "flex", gap: 8, alignItems: "center", borderLeft: "3px solid var(--acento)", background: "var(--superficie-2)", padding: "4px 8px", borderRadius: 6 }}>
                       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>↩ Respondendo {citada.de_mim ? "você" : (citada.autor || "contato")}: {semMarcador(citada.texto) || "[mídia]"}</span>
                       <button className="linkbtn" onClick={() => setCitada(null)}>✕</button></div>}
                     {arquivos.length > 0 && <div className="small" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -820,10 +820,10 @@ export default function ChatApp() {
                           onDrop={e => { if (e.dataTransfer.files?.length) { e.preventDefault(); adicionarArquivos(e.dataTransfer.files); } }}>
                           <button type="button" className="sec" title="Anexar foto, PDF ou arquivo (até 3 MB)" onClick={() => inputArq.current?.click()}>📎</button>
                           <input ref={inputArq} type="file" multiple hidden onChange={e => { adicionarArquivos(e.target.files); e.target.value = ""; }} />
-                          {marcando && opcoesMarcar.length > 0 && <div style={{ position: "absolute", bottom: "100%", left: 60, marginBottom: 6, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.14)", minWidth: 260, maxHeight: 280, overflowY: "auto", zIndex: 20 }}>
+                          {marcando && opcoesMarcar.length > 0 && <div style={{ position: "absolute", bottom: "100%", left: 60, marginBottom: 6, background: "var(--superficie)", border: "1px solid var(--linha)", borderRadius: 10, boxShadow: "var(--sombra-2)", minWidth: 260, maxHeight: 280, overflowY: "auto", zIndex: 20 }}>
                             {opcoesMarcar.map((p, i) => <div key={p.id} onMouseDown={e => { e.preventDefault(); escolherMarcado(p); }}
-                              style={{ padding: "8px 12px", cursor: "pointer", background: i === marcando.sel ? "var(--ambar-bg)" : undefined, display: "flex", gap: 8, alignItems: "center" }}>
-                              <span className="dg-avatar" style={{ width: 26, height: 26, fontSize: 10, background: p.id === "todos" ? "var(--laranja)" : "var(--azul)" }}>{p.id === "todos" ? "@" : iniciais(p.nome)}</span>
+                              style={{ padding: "8px 12px", cursor: "pointer", background: i === marcando.sel ? "var(--alerta-fundo)" : undefined, display: "flex", gap: 8, alignItems: "center" }}>
+                              <span className="dg-avatar" style={{ width: 26, height: 26, fontSize: 10, background: p.id === "todos" ? "var(--acento)" : "var(--primaria)" }}>{p.id === "todos" ? "@" : iniciais(p.nome)}</span>
                               <span>{p.id === "todos" ? "todos (marcar o grupo inteiro)" : p.nome}</span></div>)}
                           </div>}
                           <textarea ref={campoTexto} value={texto} onChange={e => aoDigitar(e.target.value, e.target.selectionStart ?? e.target.value.length)} rows={2}
@@ -1013,7 +1013,7 @@ export default function ChatApp() {
               {contatos?.length === 0 && <p className="muted small" style={{ padding: 10 }}>Ninguém encontrado. Se for número novo, use "Criar novo" acima.</p>}
               {contatos?.map(c => (
                 <div key={c.numero} className="dg-chamado" style={{ padding: "7px 10px", background: nova.numero === c.numero ? "var(--ambar-bg)" : undefined }} onClick={() => escolherContato(c)}>
-                  <div className="dg-avatar" style={{ width: 30, height: 30, fontSize: 11, background: "var(--azul)" }}>
+                  <div className="dg-avatar" style={{ width: 30, height: 30, fontSize: 11, background: "var(--primaria)" }}>
                     {c.foto ? <img src={c.foto} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /> : iniciais(c.nome || "?")}
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>

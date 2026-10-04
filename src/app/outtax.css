@@ -1,0 +1,189 @@
+/* =====================================================================
+   Outtax Painéis — design system comum (tokens + modo noturno)
+   Fonte: https://claude.ai/artifact/8CtnPaX2D8jUqhUPPeWCqU
+   Este arquivo é IGUAL nos 5 painéis. Não edite só em um: mude no
+   design system e copie para todos.
+   Tema: <html data-theme="claro|escuro">
+   ===================================================================== */
+
+@font-face { font-family: "Gotham"; src: url("/fonts/gotham-300.woff2") format("woff2"); font-weight: 100 300; font-display: swap; }
+@font-face { font-family: "Gotham"; src: url("/fonts/gotham-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Gotham"; src: url("/fonts/gotham-500.woff2") format("woff2"); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: "Gotham"; src: url("/fonts/gotham-700.woff2") format("woff2"); font-weight: 700 900; font-display: swap; }
+
+:root, [data-theme="claro"] {
+  color-scheme: light;
+  /* marca (manual: #152c6b #285199 #ffffff #FF8E2A) — iguais nos dois temas */
+  --marca-navy: #152c6b;
+  --marca-azul: #285199;
+  --marca-laranja: #ff8e2a;
+  --marca-branco: #ffffff;
+
+  /* superfícies */
+  --fundo: #f5f7fb;
+  --superficie: #ffffff;
+  --superficie-2: #f3f6fb;
+  --superficie-hover: #eef2f9;
+  --linha: #dfe4ee;
+  --borda-campo: #7d89a3;
+
+  /* texto */
+  --texto: #16213d;
+  --titulo: #152c6b;
+  --texto-2: #4b5a7a;
+  --texto-3: #5f6b86;
+  --link: #285199;
+
+  /* ação */
+  --primaria: #152c6b;
+  --primaria-hover: #285199;
+  --sobre-primaria: #ffffff;
+  --acento: #ff8e2a;
+  --sobre-acento: #152c6b;
+  --foco: #285199;
+
+  /* menu lateral / barra superior */
+  --lateral: #152c6b;
+  --lateral-2: #285199;
+  --lateral-texto: #d7deea;
+  --lateral-grupo: #c2cce3;
+
+  /* estados (sempre com palavra junto) */
+  --ok: #1d7a5a;          --ok-fundo: #e3f3ec;
+  --alerta: #8f5409;      --alerta-fundo: #fff1e0;
+  --erro: #b42323;        --erro-fundo: #fbe4e4;
+  --info: #285199;        --info-fundo: #e6edf9;
+  --andamento: #5b3fa8;   --andamento-fundo: #ede7fb;
+  --neutro: #4b5a7a;      --neutro-fundo: #eceff5;
+  --revisao: #7a6200;     --revisao-fundo: #fff6d6;
+
+  /* conversa */
+  --chat-fundo: #eef1f6;
+  --bolha: #ffffff;
+  --bolha-minha: #dfe8f7;
+  --bolha-nota: #fff4ea;
+  --veu: rgba(21,44,107,.45);
+
+  /* sombras */
+  --sombra-1: 0 1px 2px rgba(21,44,107,.06);
+  --sombra-2: 0 4px 16px rgba(21,44,107,.10);
+  --sombra-3: 0 20px 60px rgba(21,44,107,.25);
+
+  /* escala */
+  --espaco-1: 4px; --espaco-2: 8px; --espaco-3: 12px; --espaco-4: 16px; --espaco-5: 20px; --espaco-6: 28px;
+  --raio-sm: 6px; --raio-md: 10px; --raio-lg: 14px; --raio-pill: 999px;
+  --lateral-largura: 232px;
+  --font-sans: "Gotham", "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+[data-theme="escuro"] {
+  color-scheme: dark;
+  --fundo: #0f1522;
+  --superficie: #171f30;
+  --superficie-2: #1c2538;
+  --superficie-hover: #222c42;
+  --linha: #2a3550;
+  --borda-campo: #5d6b88;
+
+  --texto: #dfe6f3;
+  --titulo: #c9d6f5;
+  --texto-2: #aab6cc;
+  --texto-3: #8c9ab3;
+  --link: #8fb3f2;
+
+  --primaria: #2f5bb0;
+  --primaria-hover: #3a69c2;
+  --foco: #8fb3f2;
+
+  --lateral: #0d1733;
+  --lateral-2: #172a57;
+  --lateral-texto: #c3cde0;
+  --lateral-grupo: #8e9cbb;
+
+  --ok: #4cc79a;          --ok-fundo: #143528;
+  --alerta: #f0b35a;      --alerta-fundo: #3a2a12;
+  --erro: #ff8a8a;        --erro-fundo: #3b1a1d;
+  --info: #8fb3f2;        --info-fundo: #1d2a46;
+  --andamento: #b9a4f0;   --andamento-fundo: #2a2147;
+  --neutro: #aab6cc;      --neutro-fundo: #232c40;
+  --revisao: #e8cf6a;     --revisao-fundo: #332b0e;
+
+  --chat-fundo: #121a2a;
+  --bolha: #1c2538;
+  --bolha-minha: #22365e;
+  --bolha-nota: #3a2a12;
+  --veu: rgba(0,0,0,.6);
+
+  --sombra-1: 0 1px 2px rgba(0,0,0,.4);
+  --sombra-2: 0 4px 16px rgba(0,0,0,.45);
+  --sombra-3: 0 20px 60px rgba(0,0,0,.6);
+}
+
+/* ---------------------------------------------------------------------
+   Nomes antigos → tokens novos. Mantém funcionando o CSS e os
+   style={{...}} que ainda usam var(--navy), var(--ink-2), var(--card)...
+   Em código novo use só os nomes de cima.
+   --------------------------------------------------------------------- */
+:root, [data-theme="claro"], [data-theme="escuro"] {
+  --navy: var(--titulo);          /* era texto/título navy */
+  --navy-2: #213b82;
+  --azul: var(--link);
+  --laranja: var(--acento);
+  --menta: var(--acento);
+  --ink: var(--texto);
+  --ink-2: var(--texto-2);
+  --ink-3: var(--texto-3);
+  --paper: var(--fundo);
+  --card: var(--superficie);
+  --papel: var(--superficie);
+  --line: var(--linha);
+  --suave: var(--texto-2);
+  --verde: var(--ok);
+  --verde-bg: var(--ok-fundo);
+  --verde-claro: var(--ok-fundo);
+  --ambar: var(--alerta);
+  --ambar-bg: var(--alerta-fundo);
+  --ambar-claro: var(--alerta-fundo);
+  --vermelho: var(--erro);
+  --vermelho-bg: var(--erro-fundo);
+  --vermelho-claro: var(--erro-fundo);
+  --azul-bg: var(--info-fundo);
+  --azul-claro: var(--info-fundo);
+  --roxo: var(--link);
+  --roxo-bg: var(--info-fundo);
+  --raio: var(--raio-md);
+}
+
+/* ---------- Base comum ---------- */
+body { font-family: var(--font-sans); background: var(--fundo); color: var(--texto); font-feature-settings: "tnum" 1; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+::selection { background: var(--info-fundo); }
+
+/* ---------- Botão de tema (componente BotaoTema) ---------- */
+.botao-tema { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--lateral-texto); border: 1px solid rgba(255,255,255,.3); border-radius: var(--raio-sm); padding: 5px 9px; font: inherit; font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap; }
+.botao-tema:hover { background: rgba(255,255,255,.08); color: #ffffff; filter: none; }
+.botao-tema svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; flex: none; }
+.botao-tema.claro-fundo { color: var(--titulo); border-color: var(--borda-campo); }
+.botao-tema.claro-fundo:hover { background: var(--superficie-2); color: var(--titulo); }
+
+/* ---------- Impressão: sempre no tema claro ---------- */
+@media print {
+  [data-theme="escuro"] {
+    color-scheme: light;
+    --fundo: #ffffff; --superficie: #ffffff; --superficie-2: #f3f6fb; --superficie-hover: #eef2f9;
+    --linha: #dfe4ee; --borda-campo: #7d89a3;
+    --texto: #16213d; --titulo: #152c6b; --texto-2: #4b5a7a; --texto-3: #5f6b86; --link: #285199;
+    --primaria: #152c6b; --primaria-hover: #285199; --foco: #285199;
+    --lateral: #152c6b; --lateral-2: #285199; --lateral-texto: #d7deea; --lateral-grupo: #c2cce3;
+    --ok: #1d7a5a; --ok-fundo: #e3f3ec; --alerta: #8f5409; --alerta-fundo: #fff1e0;
+    --erro: #b42323; --erro-fundo: #fbe4e4; --info: #285199; --info-fundo: #e6edf9;
+    --andamento: #5b3fa8; --andamento-fundo: #ede7fb; --neutro: #4b5a7a; --neutro-fundo: #eceff5;
+    --revisao: #7a6200; --revisao-fundo: #fff6d6;
+    --chat-fundo: #eef1f6; --bolha: #ffffff; --bolha-minha: #dfe8f7; --bolha-nota: #fff4ea;
+    --sombra-1: none; --sombra-2: none; --sombra-3: none;
+  }
+  [data-theme="escuro"] .logo-escuro { display: none !important; }
+  [data-theme="escuro"] .logo-claro { display: inline-block !important; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

@@ -4,7 +4,7 @@ import React from "react";
 function inline(t: string, k: string) {
   return t.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((p, i) =>
     p.startsWith("**") && p.endsWith("**") ? <b key={k + i}>{p.slice(2, -2)}</b>
-      : p.startsWith("`") && p.endsWith("`") ? <code key={k + i} style={{ background: "#eef1f7", padding: "0 4px", borderRadius: 4 }}>{p.slice(1, -1)}</code>
+      : p.startsWith("`") && p.endsWith("`") ? <code key={k + i} style={{ background: "var(--superficie-2)", padding: "0 4px", borderRadius: 4 }}>{p.slice(1, -1)}</code>
       : <React.Fragment key={k + i}>{p}</React.Fragment>);
 }
 
@@ -23,8 +23,8 @@ export default function Md({ texto, tamanho = 13.5 }: { texto: string; tamanho?:
       }
       out.push(<div key={"t" + i} style={{ overflowX: "auto", margin: "6px 0" }}><table style={{ borderCollapse: "collapse", fontSize: tamanho - 1 }}><tbody>
         {rows.map((r, a) => <tr key={a}>{r.map((c, b) => a === 0
-          ? <th key={b} style={{ border: "1px solid #d9deea", padding: "4px 8px", background: "#f3f5fa", textAlign: "left" }}>{inline(c, `h${a}${b}`)}</th>
-          : <td key={b} style={{ border: "1px solid #d9deea", padding: "4px 8px" }}>{inline(c, `c${a}${b}`)}</td>)}</tr>)}
+          ? <th key={b} style={{ border: "1px solid var(--linha)", padding: "4px 8px", background: "var(--superficie-2)", textAlign: "left" }}>{inline(c, `h${a}${b}`)}</th>
+          : <td key={b} style={{ border: "1px solid var(--linha)", padding: "4px 8px" }}>{inline(c, `c${a}${b}`)}</td>)}</tr>)}
       </tbody></table></div>);
       continue;
     }

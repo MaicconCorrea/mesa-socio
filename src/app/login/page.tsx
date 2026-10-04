@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
 export default function Login() {
@@ -7,6 +7,8 @@ export default function Login() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
+  // aviso vindo do login único do Painel Outtax (/api/auth/portal)
+  useEffect(() => { const m = new URLSearchParams(window.location.search).get("erro"); if (m) setErro(m); }, []);
 
   async function entrar() {
     setErro(""); setCarregando(true);

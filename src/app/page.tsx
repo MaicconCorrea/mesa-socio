@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { agoraTexto, fimDoDia, haQuanto } from "@/lib/fmt";
 import AgendaHoje from "@/components/AgendaHoje";
 import EmailsEsperando from "@/components/EmailsEsperando";
+import BuscaMesa from "@/components/BuscaMesa";
 import { analisarAgora, criarTarefa, grupoResolvido, jaRespondi } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
           <a href="/?ver=pessoal" className={ver === "pessoal" ? "ativa" : ""}>🏠 Pessoal</a>
         </div>
           }
+          busca={<BuscaMesa versao={agora} />}
           anotar={
         <details className="card" style={{ marginTop: 10 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>✍️ Anotar algo à mão (reunião, ligação, pedido de corredor, compromisso pessoal)</summary>

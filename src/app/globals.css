@@ -586,3 +586,30 @@ a.btn{display:inline-flex;align-items:center;font-weight:500;font-size:13.5px;pa
   .ct-aplicar{margin-left:0}
   .ct-salvar{flex:1 0 100%}
 }
+
+/* ---- Pesquisa na tela Hoje (v0.22): tarefas, e-mails e conversas ---- */
+.bm-campo{position:relative;flex:1 1 280px;max-width:460px;min-width:200px}
+.bm-campo input{padding-left:32px;padding-right:34px;border-radius:var(--raio-pill);height:36px}
+.bm-campo input::-webkit-search-cancel-button{display:none}
+.bm-lupa{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--texto-3);font-size:17px;line-height:1;pointer-events:none}
+.bm-kbd,.bm-x{position:absolute;right:8px;top:50%;transform:translateY(-50%)}
+.bm-kbd{font:inherit;font-size:11px;color:var(--texto-3);border:1px solid var(--linha);border-radius:4px;padding:0 6px;background:var(--superficie-2)}
+.bm-x{border:0;background:none;color:var(--texto-3);padding:4px 6px;font-size:13px;cursor:pointer}
+.bm-x:hover{color:var(--titulo)}
+.bm-painel{flex:1 1 100%;order:9;margin-top:6px;border:1px solid var(--linha);border-radius:var(--raio-lg);background:var(--superficie-2);padding:12px 14px 4px}
+.bm-cab{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bm-cab strong{color:var(--titulo);font-weight:500}
+.bm-filtro{margin:0 0 0 auto}
+.bm-grade{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.bm-grade h2{margin-top:14px}
+.bm-mark{background:var(--alerta-fundo);color:inherit;border-radius:3px;padding:0 1px;box-shadow:inset 0 -2px 0 var(--alerta)}
+.bm-sit{font-size:11px;font-weight:500;padding:2px 8px;border-radius:var(--raio-pill);border:1px solid var(--linha);color:var(--texto-2);background:var(--superficie);white-space:nowrap}
+.bm-sit-aberta{color:var(--alerta);background:var(--alerta-fundo);border-color:transparent}
+.bm-sit-feita{color:var(--ok);background:var(--ok-fundo);border-color:transparent}
+.bm-sit-descartada{color:var(--texto-3);text-decoration:line-through}
+.card.bm-fechada{opacity:.78}
+@media (max-width:900px){
+  .bm-campo{max-width:none;flex-basis:100%;order:2}
+  .bm-grade{grid-template-columns:1fr}
+  .bm-filtro{margin-left:0}
+}

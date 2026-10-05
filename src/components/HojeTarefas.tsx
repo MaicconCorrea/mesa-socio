@@ -16,10 +16,10 @@ const plural = (n: number, um: string, varios: string) => (n === 1 ? `1 ${um}` :
 const diaBR = (iso: string) => iso.split("-").reverse().join("/");
 const hojeLocal = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
-export default function HojeTarefas({ agora, fim, atrasadas, deHoje, proximas, semPrazo, abas, anotar, lateral }: {
+export default function HojeTarefas({ agora, fim, atrasadas, deHoje, proximas, semPrazo, abas, busca, anotar, lateral }: {
   agora: number; fim: number;
   atrasadas: T[]; deHoje: T[]; proximas: T[]; semPrazo: T[];
-  abas: ReactNode; anotar: ReactNode; lateral: ReactNode;
+  abas: ReactNode; busca?: ReactNode; anotar: ReactNode; lateral: ReactNode;
 }) {
   const router = useRouter();
   const [visao, setVisao] = useState<Visao>("lista");
@@ -140,6 +140,7 @@ export default function HojeTarefas({ agora, fim, atrasadas, deHoje, proximas, s
   return <>
     <div className="hk-topo">
       {abas}
+      {busca}
       <div className="abas hk-visao" role="group" aria-label="Como mostrar as tarefas">
         <button type="button" className={visao === "lista" ? "ativa" : ""} aria-pressed={visao === "lista"} onClick={() => trocarVisao("lista")}>Lista</button>
         <button type="button" className={visao === "kanban" ? "ativa" : ""} aria-pressed={visao === "kanban"} onClick={() => trocarVisao("kanban")}>Kanban</button>

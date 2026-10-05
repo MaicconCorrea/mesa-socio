@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MandarSetor from "@/components/MandarSetor";
 import BolhaIA from "@/components/BolhaIA";
+import { apagarConversaIA, carregarConversaIA, guardarParIA } from "@/lib/ia-conversa-cliente";
 import CorpoEmail from "@/components/CorpoEmail";
 import TarefaDeEmail from "@/components/TarefaDeEmail";
 
@@ -39,6 +40,7 @@ export default function EmailApp() {
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [pergunta, setPergunta] = useState("");
   const [pensando, setPensando] = useState(false);
+  const geracaoIA = useRef(0); // muda a cada troca de e-mail (resposta atrasada da IA não cai no e-mail errado)
   const [analisando, setAnalisando] = useState(false);
   const [visor, setVisor] = useState<Anexo | null>(null);
   const [mostrarIA, setMostrarIA] = useState(false);
@@ -66,7 +68,11 @@ export default function EmailApp() {
   }, [visor]);
 
   async function abrir(id: string) {
-    setAbrindo(true); setAviso(""); setResp(null); setChat([]); setArquivos([]); setAnexosFw(new Set()); setViewMobile("conversa");
+    setAbrindo(true); setAviso(""); setResp(null); setArquivos([]); setAnexosFw(new Set()); setViewMobile("conversa");
+    if (aberta?.id !== id || !chat.length) { // trocou de e-mail: carrega a conversa com a IA guardada deste
+      const g = ++geracaoIA.current; setChat([]); setPensando(false);
+      carregarConversaIA("email", id).then(salvas => { if (salvas?.length && g === geracaoIA.current) setChat(c => [...salvas, ...c]); });
+    }
     try {
       const j = await fetch(`/api/email/thread?id=${id}`).then(r => r.json());
       if (j.erro) throw new Error(j.erro);
@@ -105,9 +111,17 @@ export default function EmailApp() {
   }
   async function perguntar(p = pergunta) {
     const q = p.trim(); if (!q || !aberta) return;
+    const alvo = aberta.id, g = geracaoIA.current;
     const hist = chat; setChat([...hist, { role: "user", content: q }]); setPergunta(""); setPensando(true); setMostrarIA(true);
-    const j = await fetch("/api/email/ia", { method: "POST", body: JSON.stringify({ threadId: aberta.id, historico: hist, pergunta: q }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    const j = await fetch("/api/email/ia", { method: "POST", body: JSON.stringify({ threadId: alvo, historico: hist, pergunta: q }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (!j.erro && j.resposta) guardarParIA("email", alvo, q, j.resposta); // guarda mesmo se você já abriu outro e-mail
+    if (g !== geracaoIA.current) return; // trocou de e-mail no meio: não mistura na tela
     setPensando(false); setChat(c => [...c, { role: "assistant", content: j.erro ? "⚠️ " + j.erro : j.resposta }]);
+  }
+  async function limparConversaIA() {
+    if (!aberta || !confirm("Limpar a conversa com a IA deste e-mail? As perguntas e sugestões salvas serão apagadas.")) return;
+    setChat([]);
+    await apagarConversaIA("email", aberta.id);
   }
   async function analisar() {
     if (!aberta) return;
@@ -261,6 +275,7 @@ export default function EmailApp() {
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); perguntar(); } }} style={{ flex: 1, minHeight: 44 }} />
                 <button className="mini" onClick={() => perguntar()} disabled={pensando || !pergunta.trim()}>Enviar</button>
               </div>
+              {chat.length > 0 && <button className="linkbtn small" onClick={limparConversaIA}>limpar conversa</button>}
             </div>
           </div>
         )}

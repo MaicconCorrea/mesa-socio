@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Md from "./Md";
+import { apagarConversaIA, carregarConversaIA, guardarParIA } from "@/lib/ia-conversa-cliente";
 
 type Dest = { tipo: "conversa"; id: string; nome: string; instancia: string }
   | { tipo: "contato"; numero: string; nome: string; instancia: string }
@@ -49,6 +50,12 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
   const [lido, setLido] = useState<{ nome: string; texto: string } | null>(null);
   const [subindo, setSubindo] = useState("");
   const fimChat = useRef<HTMLDivElement | null>(null);
+  const iaCarregada = useRef(false);
+  async function limparConversaIA() {
+    if (!confirm("Limpar a conversa com a IA desta tarefa? As perguntas e sugestões salvas serão apagadas.")) return;
+    setChat([]);
+    await apagarConversaIA("tarefa", t.id);
+  }
 
   function abrir(foco: "ia" | "enviar") {
     setAberto(true); setAviso("");
@@ -57,6 +64,10 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
       if (j.destino && !destino) setDestino(j.destino); else if (!j.destino) setTrocando(true);
     }).catch(() => {});
     fetch(`/api/tarefas/docs?tarefaId=${t.id}`).then(r => r.json()).then(j => setDocs(j.docs || [])).catch(() => {});
+    if (!iaCarregada.current) { // primeira vez que abre: traz a conversa com a IA guardada desta tarefa
+      iaCarregada.current = true;
+      carregarConversaIA("tarefa", t.id).then(salvas => { if (salvas?.length) setChat(c => [...salvas, ...c]); });
+    }
 
   }
   async function perguntar(p?: string) {
@@ -67,6 +78,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       const j = await r.json();
       setPensando(false);
+      if (!j.erro && j.resposta) guardarParIA("tarefa", t.id, q, j.resposta);
       setChat(c => [...c, { role: "assistant", content: j.erro ? "⚠️ " + j.erro : j.resposta }]);
     } catch (e: any) {
       setPensando(false);
@@ -223,6 +235,7 @@ export default function ResolverTarefa({ t }: { t: { id: string; titulo: string;
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); perguntar(); } }} style={{ flex: 1 }} />
             <button onClick={() => perguntar()} disabled={pensando || !pergunta.trim()}>Enviar</button>
           </div>
+          {chat.length > 0 && <button className="linkbtn small" onClick={limparConversaIA}>limpar conversa</button>}
         </div>
 
         {/* Enviar */}

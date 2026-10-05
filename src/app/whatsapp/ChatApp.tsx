@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ligarPush, statusPush } from "@/lib/push-cliente";
 import MandarSetor from "@/components/MandarSetor";
 import BolhaIA from "@/components/BolhaIA";
+import { apagarConversaIA, carregarConversaIA, guardarParIA } from "@/lib/ia-conversa-cliente";
 import CamposContato, { type ValorCampos } from "@/components/CamposContato";
 
 type Conversa = {
@@ -88,6 +89,7 @@ export default function ChatApp() {
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [pergunta, setPergunta] = useState("");
   const [pensando, setPensando] = useState(false);
+  const geracaoIA = useRef(0); // muda a cada troca de conversa (resposta atrasada da IA não cai na conversa errada)
   const [viewMobile, setViewMobile] = useState<"atendentes" | "lista" | "conversa">("lista");
   const [novasAbaixo, setNovasAbaixo] = useState(0);
   const msgsRef = useRef<HTMLDivElement | null>(null);
@@ -232,7 +234,9 @@ export default function ChatApp() {
   useEffect(() => {
     ativoRef.current = ativoId;
     if (!ativoId) return;
-    setChat([]); setAviso(""); setNovasAbaixo(0); setCitada(null); setArquivos([]);
+    geracaoIA.current++;
+    setChat([]); setPensando(false); setAviso(""); setNovasAbaixo(0); setCitada(null); setArquivos([]);
+    { const g = geracaoIA.current; carregarConversaIA("chat", ativoId).then(salvas => { if (salvas?.length && g === geracaoIA.current) setChat(c => [...salvas, ...c]); }); }
     setSelecionando(false); setSel(new Set()); setInstrucao(null);
     setParticipantes([]); setMencoes([]); setMarcando(null);
     { const alvo = ativoId; fetch(`/api/chat/participantes?id=${alvo}`).then(r => r.json()).then(j => { if (alvo === ativoRef.current) setParticipantes(j.participantes || []); }).catch(() => {}); }
@@ -418,10 +422,19 @@ export default function ChatApp() {
   }
   async function perguntar(texto?: string, ids?: string[]) {
     const p = (texto ?? pergunta).trim(); if (!p || !ativoId) return;
+    const alvo = ativoId, geracao = geracaoIA.current;
     const hist = chat; setChat([...hist, { role: "user", content: p }]); setPergunta(""); setPensando(true);
-    const j = await fetch("/api/chat/ia", { method: "POST", body: JSON.stringify({ id: ativoId, historico: hist, pergunta: p, selecionadas: ids || [] }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    const j = await fetch("/api/chat/ia", { method: "POST", body: JSON.stringify({ id: alvo, historico: hist, pergunta: p, selecionadas: ids || [] }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    // guarda no banco mesmo que você já tenha trocado de conversa (fica para quando voltar)
+    if (!j.erro && j.resposta) guardarParIA("chat", alvo, p, j.resposta, p.startsWith("O que a pessoa está pedindo?"));
+    if (geracao !== geracaoIA.current) return; // você trocou de conversa no meio: não mistura na tela
     setPensando(false); setMostrarIA(true);
     setChat(c => [...c, { role: "assistant", content: j.erro ? "⚠️ " + j.erro : j.resposta }]);
+  }
+  async function limparConversaIA() {
+    if (!ativoId || !confirm("Limpar a conversa com a IA desta conversa? As perguntas e sugestões salvas serão apagadas.")) return;
+    setChat([]);
+    await apagarConversaIA("chat", ativoId);
   }
 
   async function enviarArquivos() {
@@ -899,7 +912,7 @@ export default function ChatApp() {
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); perguntar(); } }} style={{ flex: 1, resize: "vertical", minHeight: 44 }} />
                 <button className="mini" onClick={() => perguntar()} disabled={pensando || !pergunta.trim()}>Enviar</button>
               </div>
-              {chat.length > 0 && <button className="linkbtn small" onClick={() => setChat([])}>limpar conversa</button>}
+              {chat.length > 0 && <button className="linkbtn small" onClick={limparConversaIA}>limpar conversa</button>}
             </div>
           </div>
         )}

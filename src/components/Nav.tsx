@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { sair } from "@/app/actions";
 import BotaoTema from "@/components/BotaoTema";
 import Icone from "@/components/Icone";
+import TrocaModulo from "@/components/TrocaModulo";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
@@ -59,6 +60,7 @@ export default function Nav({ email, nome }: { email?: string; nome?: string }) 
           <Link href="/" className="lateral-marca"><img src="/logo-branco.png" alt="Outtax" /><span>Mesa do Sócio</span></Link>
           <button type="button" className="lateral-recolher" title={(recolhido ? "Fixar o menu aberto" : "Recolher menu") + " (Ctrl + .)"} onClick={() => { setRecolhido(r => !r); setEspiando(false); }}><Icone nome="painel" /></button>
         </div>
+        <TrocaModulo atual="mesa" curto={recolhido && !espiando && !aberto} />
         <nav>
           {GRUPOS.map(g => (
             <div key={g.titulo} className="lateral-grupo">

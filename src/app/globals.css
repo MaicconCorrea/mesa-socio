@@ -479,3 +479,19 @@ a.btn{display:inline-flex;align-items:center;font-weight:500;font-size:13.5px;pa
 /* v0.15.8 · conversa: mensagens do cliente com pelo menos 60% da altura; IA + caixa de texto no máximo 40% (rolam por dentro) */
 .dg-compositor{flex-shrink:0}
 .dg-sugestao{max-height:17vh;overflow-y:auto}
+
+/* Trocar de módulo (Painel Outtax) */
+.troca-modulo { position: relative; margin: 6px 8px 4px; }
+.troca-botao { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border-radius: var(--raio-sm); border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.06); color: #fff; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; }
+.troca-botao:hover { background: rgba(255,255,255,.12); }
+.troca-botao svg { width: 16px; height: 16px; flex: none; }
+.troca-nome { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.troca-seta { opacity: .7; font-size: 11px; }
+.troca-lista { position: absolute; left: 0; top: calc(100% + 6px); z-index: 80; min-width: 240px; background: var(--superficie); color: var(--texto); border: 1px solid var(--linha); border-radius: var(--raio-md); box-shadow: var(--sombra-3); padding: 6px; }
+.troca-titulo { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--texto-3); padding: 6px 10px 4px; }
+.troca-lista a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--raio-sm); color: var(--texto); font-size: 13.5px; text-decoration: none; }
+.troca-lista a:hover { background: var(--superficie-hover); text-decoration: none; }
+.troca-lista a.atual { background: var(--info-fundo); color: var(--info); font-weight: 500; }
+.troca-lista a svg { width: 16px; height: 16px; flex: none; }
+.troca-aqui { margin-left: auto; font-size: 11px; color: var(--texto-3); }
+.troca-portal { border-top: 1px solid var(--linha); margin-top: 4px; border-radius: 0 0 var(--raio-sm) var(--raio-sm) !important; }

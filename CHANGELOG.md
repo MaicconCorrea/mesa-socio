@@ -56,3 +56,4 @@
 | v0.16 | 04/10/2026 | Design system Outtax: cores e fontes padronizadas com os outros painéis (manual da marca), modo noturno com botão no menu, Gotham local, KPIs e cartões sem borda colorida. | — |
 | v0.17 | 04/10/2026 | Menu com ícones de traço; bolha das minhas mensagens no padrão dos outros painéis. | — |
 | v0.18 | 04/10/2026 | Login único: entra direto vindo do Painel Outtax (passe assinado, 60 s), sem digitar a senha de novo. | — |
+| v0.18.1 | 04/10/2026 | Menu: seletor para trocar de módulo sem voltar ao Painel Outtax. | — |

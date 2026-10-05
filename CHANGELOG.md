@@ -59,3 +59,4 @@
 | v0.18.1 | 04/10/2026 | Menu: seletor para trocar de módulo sem voltar ao Painel Outtax. | — |
 | v0.19 | 05/10/2026 | Hoje: seleção em lote (Feito, Descartar, Mudar prazo) e visão Kanban por tipo (Prometi, Pedido, Reunião, Anotação…). Resolver com IA nos e-mails e conversas esperando resposta (resumo + solução + rascunho). | — |
 | v0.20 | 05/10/2026 | Contatos: salvar em lote cruzando WhatsApp, Google Contatos e Digisac (conexões Atendimento/BPO), com categoria e rótulo no Google. | 021_contatos_categoria.sql (opcional) |
+| v0.21 | 05/10/2026 | Segurança: só sócios ativos e administradores (MESA_ADMINS) entram; só administradores alteram as chaves globais. | 022_acesso.sql |

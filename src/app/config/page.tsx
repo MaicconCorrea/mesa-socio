@@ -9,10 +9,13 @@ import EquipeConfig from "@/components/EquipeConfig";
 import { lerConfig } from "@/lib/config";
 import { motorTranscricao } from "@/lib/transcrever";
 import { pushConfigurado } from "@/lib/push";
+import { ehAdminMesa } from "@/lib/acesso";
+import { donoAtual } from "@/lib/contexto";
 
 export const dynamic = "force-dynamic";
 
 export default async function Config({ searchParams }: { searchParams: { msg?: string } }) {
+  const admin = ehAdminMesa(donoAtual());
   const testar = async (esc: string, conta?: string) => { try { await tokenGoogle(esc, conta); return "ok"; } catch (e: any) { return String(e?.message ?? e); } };
   const g = googleConfigurado() ? { gmail: await testar(ESCOPOS.gmail), agenda: await testar(ESCOPOS.agenda), drive: await testar(ESCOPOS.drive),
     chat: await testar(ESCOPOS.chatEspacos), diretorio: await testar(ESCOPOS.diretorio, contaAdmin()), usuarios: await testar(ESCOPOS.usuarios, contaAdmin()), grupos: await testar(ESCOPOS.grupos, contaAdmin()), contatos: await testar(ESCOPOS.contatos) } : null;
@@ -40,11 +43,14 @@ export default async function Config({ searchParams }: { searchParams: { msg?: s
         <h2>🤖 IA: sugestões, meu jeito de escrever e áudios</h2>
         <EstiloIA motor={motorTranscricao()} />
 
-        <h2>🎙️ Gravador de reuniões (extensão do Chrome)</h2>
-        <GravadorConfig temChave={!!((await lerConfig()) as any).chave_gravador} motor={motorTranscricao()} />
+        {/* chaves globais (valem para o escritório todo): só administradores da Mesa (MESA_ADMINS) */}
+        {admin ? <>
+          <h2>🎙️ Gravador de reuniões (extensão do Chrome)</h2>
+          <GravadorConfig temChave={!!((await lerConfig()) as any).chave_gravador} motor={motorTranscricao()} />
 
-        <h2>👥 Reuniões da equipe (extensão para todos os setores)</h2>
-        <EquipeConfig extId={process.env.EXT_ID || "eleibeagodmdpokamdpdfneclodahbfp"} clientOk={!!process.env.EXT_OAUTH_CLIENT_ID} comChave={Object.keys(((await lerConfig()) as any).chaves_painel || {})} />
+          <h2>👥 Reuniões da equipe (extensão para todos os setores)</h2>
+          <EquipeConfig extId={process.env.EXT_ID || "eleibeagodmdpokamdpdfneclodahbfp"} clientOk={!!process.env.EXT_OAUTH_CLIENT_ID} comChave={Object.keys(((await lerConfig()) as any).chaves_painel || {})} />
+        </> : null}
 
         <h2>🔔 Avisos e resumo do dia</h2>
         {!pushConfigurado() ? <div className="aviso">Faltam <b>VAPID_PUBLIC_KEY</b> e <b>VAPID_PRIVATE_KEY</b> na Vercel — copie as duas do projeto do Painel DP.</div> : <Avisos />}

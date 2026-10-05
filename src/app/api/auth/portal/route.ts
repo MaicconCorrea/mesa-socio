@@ -1,11 +1,12 @@
 // Login único: o Painel Outtax manda para cá com ?passe=<passe> (assinado, 60 s).
-// A Mesa usa Supabase Auth: entra quem tem usuário no Auth do projeto (as mesmas regras do signInWithPassword,
-// sem a senha: e-mail confirmado e não bloqueado). A sessão é a mesma do login: cookies do @supabase/ssr,
+// A Mesa usa Supabase Auth: entra quem é sócio ativo ou administrador da Mesa (lib/acesso) E tem usuário no Auth
+// do projeto (as mesmas regras do signInWithPassword, sem a senha: e-mail confirmado e não bloqueado). A sessão é a mesma do login: cookies do @supabase/ssr,
 // criados com um link mágico gerado no servidor (não manda e-mail) e confirmado na hora.
 import { NextResponse, type NextRequest } from "next/server";
 import { verificarPasse } from "@/lib/passe";
 import { dbGlobal } from "@/lib/db";
 import { sbServer } from "@/lib/auth";
+import { podeEntrar, SEM_ACESSO_MESA } from "@/lib/acesso";
 import type { User } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,11 @@ export async function GET(req: NextRequest) {
   const email = p.email.toLowerCase();
 
   try {
+    // só sócios ativos e administradores da Mesa (MESA_ADMINS) — mesma regra do middleware
+    if (!(await podeEntrar(email))) {
+      console.warn(`[auth/portal] acesso recusado origem=portal ${email}`);
+      return paraLogin(req, SEM_ACESSO_MESA);
+    }
     // mesmas condições do login por senha (Supabase Auth): usuário existe, e-mail confirmado, não bloqueado
     const u = await acharUsuario(email);
     const bloqueado = !!(u as any)?.banned_until && new Date((u as any).banned_until).getTime() > Date.now();

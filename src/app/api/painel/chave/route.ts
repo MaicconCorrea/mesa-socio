@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { gravarConfig, lerConfig } from "@/lib/config";
 import { logado, naoAutorizado } from "@/lib/api";
+import { ehAdminMesa, SO_ADMIN_GLOBAIS } from "@/lib/acesso";
 
-// (Maiccon logado) gera a chave de um painel de setor
+// (administrador da Mesa logado) gera a chave de um painel de setor.
+// Fica fora do middleware (api/painel): a checagem de administrador é aqui.
 export async function POST(req: NextRequest) {
-  if (!(await logado())) return naoAutorizado();
+  const u = await logado();
+  if (!u) return naoAutorizado();
+  if (!ehAdminMesa(u.email)) return NextResponse.json({ erro: SO_ADMIN_GLOBAIS }, { status: 403 });
   const { setor } = await req.json().catch(() => ({}));
   if (!setor) return NextResponse.json({ erro: "setor" }, { status: 400 });
   const cfg: any = await lerConfig();

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { podeEntrar, SEM_ACESSO_MESA } from "@/lib/acesso";
 
 // Assina o e-mail de quem está logado (o servidor confere a assinatura antes de confiar no cabeçalho)
 async function assinar(email: string) {
@@ -25,6 +26,37 @@ export async function middleware(req: NextRequest) {
     }
   );
   const { data } = await supabase.auth.getUser();
+
+  // Só sócios ativos e administradores da Mesa (MESA_ADMINS) entram; o resto é deslogado.
+  if (data.user && !req.nextUrl.pathname.startsWith("/login")) {
+    let ok: boolean;
+    try { ok = await podeEntrar(data.user.email); }
+    catch (e) {
+      console.error("[middleware] não deu para conferir o acesso:", (e as any)?.message || e);
+      return req.nextUrl.pathname.startsWith("/api/")
+        ? NextResponse.json({ erro: "Não foi possível conferir seu acesso agora. Tente de novo." }, { status: 503 })
+        : new NextResponse("Não foi possível conferir seu acesso agora. Recarregue a página em instantes.", { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
+    }
+    if (!ok) {
+      console.warn(`[middleware] acesso recusado: ${data.user.email}`);
+      try { await supabase.auth.signOut(); } catch { /* limpa os cookies abaixo de qualquer jeito */ }
+      let saida: NextResponse;
+      if (req.nextUrl.pathname.startsWith("/api/")) {
+        saida = NextResponse.json({ erro: SEM_ACESSO_MESA }, { status: 403 });
+      } else {
+        const url = req.nextUrl.clone();
+        url.pathname = "/login";
+        url.search = "";
+        url.searchParams.set("erro", SEM_ACESSO_MESA);
+        saida = NextResponse.redirect(url);
+      }
+      res.cookies.getAll().forEach(c => saida.cookies.set(c));
+      // garante a saída: apaga os cookies de sessão do Supabase (sb-…), como o "sair"
+      req.cookies.getAll().filter(c => c.name.startsWith("sb-")).forEach(c => saida.cookies.set(c.name, "", { path: "/", maxAge: 0 }));
+      return saida;
+    }
+  }
+
   if (!data.user && req.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ erro: "não autenticado" }, { status: 401 });
   }

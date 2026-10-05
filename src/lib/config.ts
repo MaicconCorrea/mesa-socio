@@ -1,6 +1,7 @@
 // Preferências da Mesa (tabela config). Valores padrão quando ainda não foram mexidos.
 import { dbGlobal } from "./db";
 import { donoAtual } from "./contexto";
+import { ehAdminMesa, SO_ADMIN_GLOBAIS } from "./acesso";
 
 export const PADRAO = {
   push_whats: true,          // mensagem nova no privado (automático/pessoal)
@@ -23,7 +24,15 @@ export const PADRAO = {
 export type Config = typeof PADRAO;
 
 // Configurações do escritório (valem para todos os sócios); o resto é de cada sócio
-const GLOBAIS = new Set(["chaves_painel", "chave_gravador"]);
+// (só administradores da Mesa — MESA_ADMINS — leem/alteram pelas telas e rotas; ver lib/acesso)
+export const GLOBAIS = new Set<string>(["chaves_painel", "chave_gravador"]);
+export const temGlobal = (parcial: Record<string, unknown>) => Object.keys(parcial || {}).some(k => GLOBAIS.has(k));
+// cópia da config sem as globais (para quem não é administrador)
+export function semGlobais<T extends Record<string, any>>(c: T): T {
+  const out: any = { ...c };
+  GLOBAIS.forEach(k => { delete out[k]; });
+  return out;
+}
 const dono = () => donoAtual() || (process.env.MEU_EMAIL || "maiccon@outtax.com.br").toLowerCase();
 
 const cache = new Map<string, { em: number; c: Config }>();
@@ -39,6 +48,9 @@ export async function lerConfig(): Promise<Config> {
 }
 export async function gravarConfig(parcial: Partial<Config>) {
   const d = dono();
+  // reforço: com um sócio logado/definido, chave global só é gravada por administrador
+  const quem = donoAtual();
+  if (quem && temGlobal(parcial as any) && !ehAdminMesa(quem)) throw new Error(SO_ADMIN_GLOBAIS);
   const linhas = Object.entries(parcial).filter(([k]) => k in PADRAO)
     .map(([chave, valor]) => ({ dono: GLOBAIS.has(chave) ? "*" : d, chave, valor, atualizado_em: new Date().toISOString() }));
   if (linhas.length) await dbGlobal().from("config").upsert(linhas, { onConflict: "dono,chave" });

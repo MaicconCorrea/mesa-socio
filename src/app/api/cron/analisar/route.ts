@@ -1,5 +1,6 @@
 // Cron (a cada 2 min): IA lê as conversas novas e cria tarefas
 import { NextRequest, NextResponse } from "next/server";
+import { cronDesligado } from "@/lib/mudou";
 import { analisarPendentes } from "@/lib/analise";
 import { transcreverPendentes } from "@/lib/transcrever";
 import { sincronizarChat } from "@/lib/gchat";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
+  const mudou = cronDesligado(); if (mudou) return mudou; // virada: a Mesa mudou para o portal
   const auth = req.headers.get("authorization");
   const secret = req.nextUrl.searchParams.get("secret");
   const okCron = process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`;

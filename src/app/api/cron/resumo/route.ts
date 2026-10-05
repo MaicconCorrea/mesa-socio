@@ -1,5 +1,6 @@
 // Cron: resumo às 8h (manha) e 17:30 (tarde), dias úteis
 import { NextRequest, NextResponse } from "next/server";
+import { cronDesligado } from "@/lib/mudou";
 import { enviarResumo } from "@/lib/enviar-resumo";
 import { listarSocios } from "@/lib/socios";
 import { comDono } from "@/lib/contexto";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
+  const mudou = cronDesligado(); if (mudou) return mudou; // virada: a Mesa mudou para o portal
   const auth = req.headers.get("authorization");
   const secret = req.nextUrl.searchParams.get("secret");
   const ok = (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) || (process.env.WEBHOOK_SECRET && secret === process.env.WEBHOOK_SECRET);

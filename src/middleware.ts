@@ -10,6 +10,14 @@ async function assinar(email: string) {
 }
 
 export async function middleware(req: NextRequest) {
+  // Virada: com MESA_REDIRECIONAR_PARA (ex.: https://painel-outtax.vercel.app/mesa), as TELAS vão para a Mesa nova
+  // (mesmo caminho; /login vai para o início). As rotas /api não são redirecionadas (webhook, extensão, painéis).
+  const destino = (process.env.MESA_REDIRECIONAR_PARA || "").trim().replace(/\/+$/, "");
+  if (destino && !req.nextUrl.pathname.startsWith("/api/")) {
+    const p = req.nextUrl.pathname;
+    const caminho = p === "/" || p.startsWith("/login") ? "" : p;
+    return NextResponse.redirect(destino + caminho + (caminho ? req.nextUrl.search : ""), 302);
+  }
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

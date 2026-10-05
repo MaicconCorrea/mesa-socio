@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Outtax — Gravador de reuniões",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Grava o som da aba da reunião (Meet, Zoom, Teams) + seu microfone. A reunião aparece transcrita e resumida no painel do seu setor.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4eNXEeDiV1Qx1FIZwnxedchIITDcbZwOSxGqOSJNKLR7sHA/6Ac1Mq5+9tPYwLE626GAl9Wsxi4/r6JVMghY5yxlvjMs36dT77EGc+Rt+2mHur1Q1cu0cG+/j6KddAIpH+EPb66YyqVYgeymJP6QJyZACWmET+282FCBo95imT8M+6PjPa5yNcTqYrWVyVyZVKW93R8msRO3fowetYH5a7B5XXJNh2e897ThG/jffY5SHQOeHjx3ojF5GJcbpAk3LoeSnwCH4HyU7Sg078iV3sDVG9C+GC2BzdlsAl/xgGN9BucdOQPbcmqym/cbzzFCIXwHSYyW8IIo/Gvwg6N9KQIDAQAB",
   "permissions": [
@@ -11,7 +11,8 @@
     "identity"
   ],
   "host_permissions": [
-    "https://mesa-socio.vercel.app/*"
+    "https://mesa-socio.vercel.app/*",
+    "https://painel-outtax.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html",

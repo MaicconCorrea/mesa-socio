@@ -1,5 +1,6 @@
 // Cron (a cada 2 min): "reunião em 10 min" e "prazo em 30 min"
 import { NextRequest, NextResponse } from "next/server";
+import { cronDesligado } from "@/lib/mudou";
 import { db } from "@/lib/db";
 import { listarEventos } from "@/lib/agenda";
 import { googleConfigurado } from "@/lib/google";
@@ -14,6 +15,7 @@ export const maxDuration = 60;
 const hm = (s: string) => new Date(s).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 
 export async function GET(req: NextRequest) {
+  const mudou = cronDesligado(); if (mudou) return mudou; // virada: a Mesa mudou para o portal
   const auth = req.headers.get("authorization");
   const secret = req.nextUrl.searchParams.get("secret");
   const ok = (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) || (process.env.WEBHOOK_SECRET && secret === process.env.WEBHOOK_SECRET);

@@ -6,6 +6,7 @@ async function iniciar() {
   const { gravando, setorPadrao } = await chrome.storage.local.get(["gravando", "setorPadrao"]);
   if (gravando) { mostrar("gravando"); $("tituloG").textContent = gravando.titulo; return; }
   let eu;
+  await lerConfig().catch(() => {}); // fora de gravação: confere se a Mesa mudou de endereço (virada para o portal)
   try { eu = await mesa("/api/ext/eu"); } catch (e) { mostrar("entrar"); if (!/HTTP 401|Login|conta Google/.test(e.message)) msg(e.message, true); return; }
   await chrome.storage.local.set({ email: eu.email });
   $("ola").textContent = `Olá, ${eu.nome.split(" ")[0]}!`;

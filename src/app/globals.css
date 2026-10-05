@@ -532,3 +532,57 @@ a.btn{display:inline-flex;align-items:center;font-weight:500;font-size:13.5px;pa
   .hk-lote{border-radius:var(--raio-lg) var(--raio-lg) 0 0;padding:10px}
   .hk-lote-n{flex:1 0 100%}
 }
+
+/* ---- Contatos (v0.20): lote cruzando WhatsApp, Google Contatos e Digisac ---- */
+.ct-nota{margin:0 0 12px}
+.ct-status{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;color:var(--texto-2)}
+.ct-status b{font-weight:500}
+.ct-ok{color:var(--ok)}
+.ct-ruim{color:var(--alerta)}
+.ct-filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px}
+.ct-filtros .abas{margin:0}
+.ct-chip{padding:5px 12px;border-radius:var(--raio-pill);border:1px solid var(--linha);background:var(--superficie);color:var(--texto-2);font-size:13px;font-weight:400}
+.ct-chip:hover{background:var(--superficie-2)}
+.ct-chip.ativa{background:var(--primaria);color:var(--sobre-primaria);border-color:var(--primaria)}
+.ct-chip:disabled{opacity:.55;cursor:not-allowed}
+.ct-num{display:inline-block;min-width:20px;margin-left:4px;padding:0 6px;border-radius:var(--raio-pill);background:var(--neutro-fundo);color:var(--texto-2);font-size:11.5px;font-weight:500;text-align:center}
+.ct-chip.ativa .ct-num{background:var(--superficie);color:var(--titulo)}
+.ct-busca{flex:1 1 220px;width:auto;min-width:0}
+.ct-barra{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;background:var(--superficie);border:1px solid var(--linha);border-radius:var(--raio-md);box-shadow:var(--sombra-1);padding:10px 14px;margin:0 0 12px}
+.ct-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--texto)}
+.ct-check input,.ct-col-check input{width:auto}
+.ct-aplicar{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin-left:auto}
+.ct-aplicar select{width:auto;padding:5px 8px;font-size:12.5px}
+.ct-salvar{white-space:nowrap}
+.ct-tabela td{vertical-align:top}
+.ct-tabela td input,.ct-tabela td select{padding:6px 8px;font-size:13px}
+.ct-tabela td select{min-width:150px}
+.ct-col-check{width:36px}
+.ct-tabela tr.ct-marcada td{background:var(--info-fundo)}
+.ct-tabela tr.ct-falta td{background:var(--alerta-fundo)}
+.ct-sugestao{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:4px}
+.ct-ultima{max-width:260px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ct-selos{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:2px}
+.selo.ct-sim{background:var(--ok-fundo);color:var(--ok)}
+.selo.ct-nao{background:var(--erro-fundo);color:var(--erro)}
+.selo.ct-neutro{background:var(--neutro-fundo);color:var(--texto-2)}
+.ct-erros{margin-top:6px}
+.ct-erros summary{cursor:pointer}
+.ct-erros ul{margin:6px 0 0 18px;padding:0;color:var(--texto)}
+@media (max-width:820px){
+  .ct-tabela,.ct-tabela tbody,.ct-tabela tr,.ct-tabela td{display:block;width:100%}
+  .ct-tabela{background:transparent;border:0}
+  .ct-tabela thead{display:none}
+  .ct-tabela tr{position:relative;background:var(--superficie);border:1px solid var(--linha);border-radius:var(--raio-md);margin-bottom:10px;padding:8px 10px 8px 42px}
+  .ct-tabela tr:hover td{background:transparent}
+  .ct-tabela tr.ct-marcada{background:var(--info-fundo)}
+  .ct-tabela tr.ct-falta{background:var(--alerta-fundo)}
+  .ct-tabela tr.ct-marcada td,.ct-tabela tr.ct-falta td{background:transparent}
+  .ct-tabela td{border:0;padding:4px 0}
+  .ct-tabela td[data-rotulo]::before{content:attr(data-rotulo);display:block;font-size:11px;color:var(--texto-3);text-transform:uppercase;letter-spacing:.05em}
+  .ct-tabela td.ct-col-check{position:absolute;left:12px;top:12px;width:auto;padding:0}
+  .ct-tabela td select{min-width:0}
+  .ct-ultima{max-width:none}
+  .ct-aplicar{margin-left:0}
+  .ct-salvar{flex:1 0 100%}
+}

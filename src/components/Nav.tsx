@@ -9,7 +9,7 @@ import TrocaModulo from "@/components/TrocaModulo";
 
 // Menu lateral igual ao do Painel DP: expandido/recolhido (Ctrl + .), gaveta no celular.
 const GRUPOS: { titulo: string; itens: [string, string, string, string?][] }[] = [
-  { titulo: "Meu dia", itens: [["/", "Hoje", "casa"], ["/whatsapp", "WhatsApp", "conversa"], ["/whatsapp?cx=gchat", "Google Chat", "chat"], ["/email", "E-mail", "email"], ["/agenda", "Agenda", "agenda"], ["/reunioes", "Reuniões", "video"], ["/resumo", "Resumo do dia", "sol"]] },
+  { titulo: "Meu dia", itens: [["/", "Hoje", "casa"], ["/whatsapp", "WhatsApp", "conversa"], ["/whatsapp?cx=gchat", "Google Chat", "chat"], ["/contatos", "Contatos", "contato"],["/email", "E-mail", "email"], ["/agenda", "Agenda", "agenda"], ["/reunioes", "Reuniões", "video"], ["/resumo", "Resumo do dia", "sol"]] },
   { titulo: "Sistema", itens: [["/config", "Configuração", "config"]] },
 ];
 

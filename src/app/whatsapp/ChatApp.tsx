@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ligarPush, statusPush } from "@/lib/push-cliente";
 import MandarSetor from "@/components/MandarSetor";
 import BolhaIA from "@/components/BolhaIA";
+import CamposContato, { type ValorCampos } from "@/components/CamposContato";
 
 type Conversa = {
   id: string; instancia: string; jid: string; nome: string; is_grupo: boolean; modo: string;
@@ -110,7 +111,8 @@ export default function ChatApp() {
   const [infoContatos, setInfoContatos] = useState<{ total: number; google: string } | null>(null);
   const [sincronizando, setSincronizando] = useState("");
   const [contatoSalvo, setContatoSalvo] = useState(true); // número da conversa aberta está no Google Contatos / Mesa?
-  const [novoContato, setNovoContato] = useState<{ nome: string; salvando: boolean; erro: string } | null>(null);
+  const [novoContato, setNovoContato] = useState<{ nome: string; salvando: boolean; erro: string; campos: ValorCampos } | null>(null);
+  const [camposNovo, setCamposNovo] = useState<ValorCampos>({ categoria: "", conexao: "" }); // aba "Criar novo" da Nova conversa
   const anteriores = useRef<Map<string, number> | null>(null);
   const historicoPedido = useRef<Set<string>>(new Set());
   const [carregandoAntigas, setCarregandoAntigas] = useState(false);
@@ -272,13 +274,14 @@ export default function ChatApp() {
   }, [jidAtivo]);
   async function salvarContatoDaConversa() {
     if (!novoContato || !ativoId || !jidAtivo) return;
+    if (!novoContato.campos.categoria || !novoContato.campos.conexao) { setNovoContato({ ...novoContato, erro: "Escolha a categoria e a conexão do Digisac (ou Não cadastrar)." }); return; }
     setNovoContato({ ...novoContato, salvando: true, erro: "" });
-    const j = await fetch("/api/chat/contato", { method: "POST", body: JSON.stringify({ numero: jidAtivo.split("@")[0], nome: novoContato.nome, conversaId: ativoId }) })
+    const j = await fetch("/api/chat/contato", { method: "POST", body: JSON.stringify({ numero: jidAtivo.split("@")[0], nome: novoContato.nome, conversaId: ativoId, ...novoContato.campos }) })
       .then(r => r.json()).catch(e => ({ erro: String(e) }));
-    if (j.erro) { setNovoContato({ ...novoContato, salvando: false, erro: j.erro }); return; }
+    if (j.erro || j.resultado?.mesa === "erro") { setNovoContato({ ...novoContato, salvando: false, erro: j.erro || j.aviso || "não salvou" }); return; }
     setNovoContato(null); setContatoSalvo(true);
     setLista(l => l.map(c => c.id === ativoId ? { ...c, nome: novoContato.nome } : c));
-    setAviso(j.google ? "✅ Contato salvo no Google Contatos (vai aparecer no celular)." : "✅ Contato salvo na Mesa. " + (j.aviso ? "Não foi pro Google Contatos: " + j.aviso : ""));
+    setAviso("Contato salvo: " + (j.texto || "") + (j.aviso ? " · " + j.aviso : ""));
   }
 
   async function responderPrivado(m: Msg) {
@@ -587,9 +590,10 @@ export default function ChatApp() {
   }
   async function criarContato() {
     setCriarContatoAviso("");
-    const j = await fetch("/api/chat/contato", { method: "POST", body: JSON.stringify({ numero: nova.numero, nome: nova.nome }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
-    if (j.erro) { setCriarContatoAviso(j.erro); return; }
-    setCriarContatoAviso("✓ Contato criado! Agora choose abaixo para conversar.");
+    if (!camposNovo.categoria || !camposNovo.conexao) { setCriarContatoAviso("Escolha a categoria e a conexão do Digisac (ou Não cadastrar)."); return; }
+    const j = await fetch("/api/chat/contato", { method: "POST", body: JSON.stringify({ numero: nova.numero, nome: nova.nome, ...camposNovo }) }).then(r => r.json()).catch(e => ({ erro: String(e) }));
+    if (j.erro || j.resultado?.mesa === "erro") { setCriarContatoAviso(j.erro || j.aviso || "não salvou"); return; }
+    setCriarContatoAviso("✓ Contato criado: " + (j.texto || "") + (j.aviso ? " · " + j.aviso : "") + ". Agora escolha abaixo para conversar.");
     setTimeout(() => { setAbaNova("buscar"); setBuscaContato(nova.nome.trim() || nova.numero); }, 800);
   }
   async function carregarAntigas() {
@@ -699,7 +703,7 @@ export default function ChatApp() {
                     <b className="conv-nome" title={ativo.nome}>{ativo.is_grupo ? "👥 " : ""}{ativo.nome}</b>
                     {!ativo.is_grupo && !contatoSalvo && (
                       <button className="sec" style={{ fontSize: 12, padding: "4px 8px", whiteSpace: "nowrap" }}
-                        onClick={() => setNovoContato({ nome: /^\+?\d[\d\s()-]*$/.test(ativo.nome || "") ? "" : (ativo.nome || ""), salvando: false, erro: "" })}
+                        onClick={() => setNovoContato({ nome: /^\+?\d[\d\s()-]*$/.test(ativo.nome || "") ? "" : (ativo.nome || ""), salvando: false, erro: "", campos: { categoria: "", conexao: "" } })}
                         title="Este número não está nos seus contatos">➕ Criar contato</button>
                     )}
                   </div>
@@ -988,9 +992,10 @@ export default function ChatApp() {
       {novoContato && ativo && <div className="modal-fundo" onClick={e => { if (e.target === e.currentTarget) setNovoContato(null); }}>
         <div className="modal-caixa" style={{ width: 420 }}>
           <b style={{ fontSize: 16 }}>➕ Criar contato</b>
-          <p className="muted small" style={{ margin: 0 }}>Número: {ativo.jid?.split("@")[0]} · salva no Google Contatos (aparece no celular) e na Mesa.</p>
+          <p className="muted small" style={{ margin: 0 }}>Número: {ativo.jid?.split("@")[0]} · salva na Mesa, no Google Contatos (o celular sincroniza e o WhatsApp mostra o nome) e no Digisac, se escolher a conexão.</p>
           <label>Nome<input autoFocus value={novoContato.nome} onChange={e => setNovoContato({ ...novoContato, nome: e.target.value })}
             onKeyDown={e => { if (e.key === "Enter" && novoContato.nome.trim()) salvarContatoDaConversa(); }} placeholder="Ex.: Solange - Policlínica Sapé" /></label>
+          <CamposContato valor={novoContato.campos} onChange={v => setNovoContato(n => n ? { ...n, campos: v } : n)} />
           {novoContato.erro && <div className="aviso erro small">{novoContato.erro}</div>}
           <div className="acoes" style={{ justifyContent: "flex-end" }}>
             <button className="sec" onClick={() => setNovoContato(null)}>Cancelar</button>
@@ -1042,10 +1047,11 @@ export default function ChatApp() {
           {abaNova === "criar" && <>
             <label style={{ marginTop: 8 }}>Nome do contato<input value={nova.nome} onChange={e => setNova({ ...nova, nome: e.target.value })} placeholder="João Silva" autoFocus /></label>
             <label style={{ marginTop: 8 }}>Telefone<input value={nova.numero} onChange={e => setNova({ ...nova, numero: e.target.value })} placeholder="21 99999-9999" /></label>
+            <div style={{ display: "grid", gap: 8, marginTop: 8 }}><CamposContato valor={camposNovo} onChange={setCamposNovo} /></div>
             {criarContatoAviso && <p className="small" style={{ color: criarContatoAviso.startsWith("✓") ? "var(--verde)" : "var(--vermelho)" }}>{criarContatoAviso}</p>}
             <div className="acoes" style={{ marginTop: 12, justifyContent: "flex-end" }}>
               <button className="sec" onClick={() => setModalNova(false)}>Cancelar</button>
-              <button onClick={criarContato} disabled={!nova.nome.trim() || !nova.numero.trim()}>Criar contato</button>
+              <button onClick={criarContato} disabled={!nova.nome.trim() || !nova.numero.trim() || !camposNovo.categoria || !camposNovo.conexao}>Criar contato</button>
             </div>
           </>}
         </div>

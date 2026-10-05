@@ -4,7 +4,7 @@ import { db } from "./db";
 import { listarContatos } from "./evolution";
 import { minhasInstancias } from "./numeros";
 import { donoAtual } from "./contexto";
-import { ESCOPOS, googleConfigurado, tokenGoogle, minhaConta } from "./google";
+import { ESCOPOS, googleConfigurado, tokenGoogle } from "./google";
 
 export type Contato = { numero: string; nome: string; foto: string | null; fonte: string; salvo?: boolean; conversas: { id: string; instancia: string }[] };
 export const soDigitos = (s: string) => (s || "").replace(/\D/g, "");
@@ -83,22 +83,4 @@ export async function estaSalvo(numero: string): Promise<boolean> {
   return lista.some(c => c.salvo && (c.numero === n || c.numero === sem9 || c.numero === com9));
 }
 
-// Cria no Google Contatos (vai pro celular) e sempre guarda na Mesa.
-export async function criarContato(numero: string, nome: string): Promise<{ google: boolean; aviso?: string }> {
-  const n = normalizarBR(numero);
-  await db().from("contatos").upsert({ numero: n, nome }, { onConflict: "dono,numero" });
-  let google = false, aviso: string | undefined;
-  if (googleConfigurado()) {
-    try {
-      const token = await tokenGoogle(ESCOPOS.contatosEscrever, minhaConta());
-      const r = await fetch("https://people.googleapis.com/v1/people:createContact", {
-        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ names: [{ givenName: nome }], phoneNumbers: [{ value: "+" + n, type: "mobile" }] }),
-      });
-      google = r.ok;
-      if (!r.ok) aviso = `Google Contatos: ${(await r.text()).slice(0, 150)}`;
-    } catch (e: any) { aviso = String(e?.message || e); }
-  }
-  limparCacheContatos();
-  return { google, aviso };
-}
+// Criar contato (Mesa + Google Contatos + Digisac): ver salvarContatos em contatos-destinos.ts

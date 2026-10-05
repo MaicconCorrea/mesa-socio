@@ -10,7 +10,7 @@ export function dbGlobal(): SupabaseClient {
   return base;
 }
 
-const DO_DONO = new Set(["conversas", "mensagens", "tarefa_docs", "tarefas", "email_threads", "chamados", "ia_uso", "push_assinaturas", "avisos_enviados", "numeros"]);
+const DO_DONO = new Set(["conversas", "mensagens", "tarefa_docs", "tarefas", "email_threads", "chamados", "ia_uso", "push_assinaturas", "avisos_enviados", "numeros", "contatos"]);
 
 function comDonoNoValor(v: any, d: string) {
   const um = (x: any) => (x && typeof x === "object" && !x.dono ? { ...x, dono: d } : x);

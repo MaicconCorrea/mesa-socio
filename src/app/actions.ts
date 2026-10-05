@@ -7,6 +7,8 @@ import { exigirLogin, sbServer } from "@/lib/auth";
 import { donoAtual } from "@/lib/contexto";
 import { analisarConversa, analisarPendentes } from "@/lib/analise";
 import { ligarWebhook as ligarWebhookEvo } from "@/lib/evolution";
+import { salvarContatos, validarItens } from "@/lib/contatos-destinos";
+import type { ItemContato, ResumoContatos } from "@/lib/contatos-comum";
 
 function atualizar() {
   revalidatePath("/");
@@ -90,6 +92,18 @@ export async function mudarPrazoTarefasLote(ids: string[], dia: string): Promise
     }
     atualizar();
     return { ok: true, n };
+  } catch (e: any) { return { ok: false, erro: String(e?.message || e) }; }
+}
+
+// ---- Contatos em lote (tela Contatos): Mesa + Google Contatos + Digisac ----
+export type ResultadoContatosLote = { ok: boolean; resumo?: ResumoContatos; erro?: string };
+export async function salvarContatosLote(itens: ItemContato[]): Promise<ResultadoContatosLote> {
+  try {
+    await exigirDonoDoLote();
+    const { resumo } = await salvarContatos(validarItens(itens));
+    revalidatePath("/contatos");
+    revalidatePath("/whatsapp");
+    return { ok: true, resumo };
   } catch (e: any) { return { ok: false, erro: String(e?.message || e) }; }
 }
 

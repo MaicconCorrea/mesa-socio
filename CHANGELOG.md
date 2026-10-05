@@ -57,3 +57,4 @@
 | v0.17 | 04/10/2026 | Menu com ícones de traço; bolha das minhas mensagens no padrão dos outros painéis. | — |
 | v0.18 | 04/10/2026 | Login único: entra direto vindo do Painel Outtax (passe assinado, 60 s), sem digitar a senha de novo. | — |
 | v0.18.1 | 04/10/2026 | Menu: seletor para trocar de módulo sem voltar ao Painel Outtax. | — |
+| v0.19 | 05/10/2026 | Hoje: seleção em lote (Feito, Descartar, Mudar prazo) e visão Kanban por tipo (Prometi, Pedido, Reunião, Anotação…). Resolver com IA nos e-mails e conversas esperando resposta (resumo + solução + rascunho). | — |

@@ -1,7 +1,8 @@
 import AutoRefresh from "@/components/AutoRefresh";
 import { socioAtual } from "@/lib/socios";
 import { meusNumeros } from "@/lib/numeros";
-import TarefaCard from "@/components/TarefaCard";
+import HojeTarefas from "@/components/HojeTarefas";
+import ResolverEspera from "@/components/ResolverEspera";
 import { db } from "@/lib/db";
 import { agoraTexto, fimDoDia, haQuanto } from "@/lib/fmt";
 import AgendaHoje from "@/components/AgendaHoje";
@@ -58,12 +59,15 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
           </form>
         </div>
 
+        <HojeTarefas agora={agora} fim={fim} atrasadas={atrasadas} deHoje={deHoje} proximas={proximas} semPrazo={semPrazo}
+          abas={
         <div className="abas">
           <a href="/" className={ver === "tudo" ? "ativa" : ""}>Tudo</a>
           <a href="/?ver=trabalho" className={ver === "trabalho" ? "ativa" : ""}>💼 Trabalho</a>
           <a href="/?ver=pessoal" className={ver === "pessoal" ? "ativa" : ""}>🏠 Pessoal</a>
         </div>
-
+          }
+          anotar={
         <details className="card" style={{ marginTop: 10 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600 }}>✍️ Anotar algo à mão (reunião, ligação, pedido de corredor, compromisso pessoal)</summary>
           <form action={criarTarefa} className="form-linha" style={{ marginTop: 10, gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto" }}>
@@ -87,23 +91,9 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
             <div><button className="primario">Salvar</button></div>
           </form>
         </details>
-
-        <div className="grade">
-          <div>
-            <h2>🔥 Atrasadas {atrasadas.length ? <span className="contador">{atrasadas.length}</span> : null}</h2>
-            {atrasadas.length ? atrasadas.map((t) => <TarefaCard key={t.id} t={t} classe="atrasada" />) : <div className="vazio">Nada atrasado.</div>}
-
-            <h2>📅 Para hoje {deHoje.length ? <span className="contador">{deHoje.length}</span> : null}</h2>
-            {deHoje.length ? deHoje.map((t) => <TarefaCard key={t.id} t={t} classe="hoje" />) : <div className="vazio">Nada com prazo hoje.</div>}
-
-            <h2>🗓️ Próximos dias</h2>
-            {proximas.length ? proximas.map((t) => <TarefaCard key={t.id} t={t} />) : <div className="vazio">Nada agendado.</div>}
-
-            <h2>📌 Sem prazo</h2>
-            {semPrazo.length ? semPrazo.map((t) => <TarefaCard key={t.id} t={t} />) : <div className="vazio">Nada.</div>}
-          </div>
-
-          <div>
+          }
+          lateral={
+          <>
             <h2>📅 Agenda de hoje <a href="/agenda" className="small" style={{ fontWeight: 400 }}>ver semana</a></h2>
             <AgendaHoje />
             {ver !== "pessoal" ? (
@@ -123,6 +113,7 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
                     {c.resumo ? <div className="meta">🤖 {c.resumo}</div> : null}
                     <div className="acoes">
                       <form action={jaRespondi}><input type="hidden" name="id" value={c.id} /><button className="ok">Já respondi</button></form>
+                      <ResolverEspera tipo="conversa" id={c.id} />
                       <a className="botao" href={`/whatsapp?c=${c.id}`}>Mudar modo</a>
                     </div>
                   </div>
@@ -155,8 +146,8 @@ export default async function Hoje({ searchParams }: { searchParams: { ver?: str
             ) : (
               <div className="card" style={{ marginTop: 26 }}>🏠 Aqui ficam só os compromissos pessoais. Conversas de família e amigos não entram em "esperando resposta".</div>
             )}
-          </div>
-        </div>
+          </>
+          } />
       </div>
     </>
   );

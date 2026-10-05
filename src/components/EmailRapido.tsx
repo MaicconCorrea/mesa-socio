@@ -6,12 +6,12 @@ import { separarSugestao } from "./BolhaIA";
 const hora = (s: string) => new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 // E-mail aberto por cima da tela (Hoje), com resposta e sugestão da IA
-export default function EmailRapido({ threadId, onFechar }: { threadId: string; onFechar: (msg?: string) => void }) {
+export default function EmailRapido({ threadId, onFechar, rascunho = "" }: { threadId: string; onFechar: (msg?: string) => void; rascunho?: string }) {
   const [t, setT] = useState<any>(null);
   const [erro, setErro] = useState("");
   const [para, setPara] = useState("");
   const [cc, setCc] = useState("");
-  const [corpo, setCorpo] = useState("");
+  const [corpo, setCorpo] = useState(rascunho); // "Usar resposta" do Resolver com IA já chega preenchido
   const [todos, setTodos] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [pensando, setPensando] = useState(false);
